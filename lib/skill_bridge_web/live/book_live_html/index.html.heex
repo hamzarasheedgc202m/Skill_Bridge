@@ -1,0 +1,233 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div style="max-width:860px;margin:0 auto">
+    <div style="background:#fff;border:1.5px solid #E8E5DF;border-radius:20px;padding:1.6rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.4rem;box-shadow:0 2px 12px rgba(26,39,68,0.06)">
+      <div style="flex-shrink:0">
+        <%= if @profile.profile_image_url && @profile.profile_image_url != "" do %>
+          <img
+            src={@profile.profile_image_url}
+            style="width:78px;height:78px;border-radius:50%;object-fit:cover;border:3px solid #E8E5DF"
+            onerror="this.style.display='none';this.nextSibling.style.display='flex'"
+          />
+          <div style="display:none;width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2E9B8B);align-items:center;justify-content:center;color:#fff;font-size:1.8rem;font-weight:700">
+            {String.first(@profile.user.name)}
+          </div>
+        <% else %>
+          <div style="width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2E9B8B);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.8rem;font-weight:700">
+            {String.first(@profile.user.name)}
+          </div>
+        <% end %>
+      </div>
+      <div style="flex:1">
+        <h1 style="font-size:1.35rem;font-weight:700;color:#1A2744;margin-bottom:0.3rem">
+          Book {@profile.user.name}
+        </h1>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+          <span style="padding:0.2rem 0.65rem;background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0;border-radius:100px;font-size:0.73rem;font-weight:600">
+            🔧 {@profile.skill_category.name}
+          </span>
+          <span style="padding:0.2rem 0.65rem;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:100px;font-size:0.73rem;font-weight:600">
+            📍 {if @profile.city && @profile.city != "",
+              do: "#{@profile.city}, #{@profile.province}",
+              else: @profile.region}
+          </span>
+          <%= if @profile.hourly_rate_cents do %>
+            <span style="padding:0.2rem 0.65rem;background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;border-radius:100px;font-size:0.73rem;font-weight:600">
+              💰 PKR {@profile.hourly_rate_cents}/hr
+            </span>
+          <% end %>
+        </div>
+        <%= if @profile.bio do %>
+          <p style="font-size:0.82rem;color:#5B7096;margin-top:0.5rem;line-height:1.5">
+            {@profile.bio}
+          </p>
+        <% end %>
+      </div>
+    </div>
+
+    <%= if @live_action == :new do %>
+      <div style="background:#fff;border:1.5px solid #E8E5DF;border-radius:20px;padding:1.4rem;margin-bottom:1.2rem">
+        <h2 style="font-weight:700;color:#1A2744;font-size:0.95rem;margin-bottom:1rem">
+          🕐 Select a Time Slot
+        </h2>
+        <%= if @profile.availability_slots == [] do %>
+          <p style="text-align:center;padding:1.5rem;color:#8FA3C0;font-size:0.88rem">
+            No availability set yet. Contact the professional directly.
+          </p>
+        <% else %>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:0.7rem">
+            <%= for {day, slots} <- slots_by_day(@profile.availability_slots) do %>
+              <div style="border:1.5px solid #E8E5DF;border-radius:12px;overflow:hidden">
+                <div style="background:linear-gradient(135deg,#1A2744,#2A3F6B);padding:0.45rem 0.8rem;display:flex;align-items:center;gap:0.4rem">
+                  <span style="font-size:0.65rem;font-weight:800;color:rgba(255,255,255,0.55);letter-spacing:0.12em">
+                    {day_short(day)}
+                  </span>
+                  <span style="font-size:0.82rem;font-weight:700;color:#fff">
+                    {day_full(day)}
+                  </span>
+                </div>
+                <div style="padding:0.5rem;display:flex;flex-direction:column;gap:0.35rem">
+                  <%= for slot <- slots do %>
+                    <.link
+                      navigate={
+                        ~p"/user/book/#{@profile.id}/confirm?slot_day=#{day}&slot_start=#{Calendar.strftime(slot.start_time, "%H:%M")}&slot_end=#{Calendar.strftime(slot.end_time, "%H:%M")}"
+                      }
+                      style="background:#0F172A;border-radius:8px;padding:0.45rem 0.7rem;display:flex;align-items:center;justify-content:space-between;text-decoration:none"
+                    >
+                      <span style="font-family:'Courier New',monospace;font-size:0.85rem;font-weight:700;color:#4ADE80">
+                        {fmt_time(slot.start_time)}
+                      </span>
+                      <span style="font-size:0.6rem;color:#64748B;padding:0 0.2rem">→</span>
+                      <span style="font-family:'Courier New',monospace;font-size:0.85rem;font-weight:700;color:#FB923C">
+                        {fmt_time(slot.end_time)}
+                      </span>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+          <p style="font-size:0.72rem;color:#8FA3C0;margin-top:0.7rem;text-align:center">
+            Click one slot to open booking form on a separate page.
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%= if @live_action == :confirm and @selected_slot do %>
+      <div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.82rem;color:#1E40AF">
+        ✅ Selected Slot: {day_full(@selected_slot.day)} — {@selected_slot.start_label} to {@selected_slot.end_label}
+      </div>
+
+      <div style="background:#fff;border:1.5px solid #E8E5DF;border-radius:20px;padding:1.5rem">
+        <h2 style="font-weight:700;color:#1A2744;font-size:0.95rem;margin-bottom:1.2rem">
+          📅 Book a Time
+        </h2>
+
+        <div style="margin-bottom:1rem">
+          <label style="display:block;font-size:0.72rem;font-weight:700;color:#1A2744;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem">
+            Date & Time *
+          </label>
+          <input
+            type="datetime-local"
+            value={@scheduled_at}
+            phx-keyup="set_datetime"
+            phx-blur="set_datetime"
+            phx-value-value={@scheduled_at}
+            oninput="this.dispatchEvent(new Event('phx:blur', {bubbles:true}));liveviewSetDT(this.value)"
+            id="dt-input"
+            style="width:100%;padding:0.78rem 1rem;border:1.5px solid #E8E5DF;border-radius:10px;font-family:inherit;font-size:0.95rem;outline:none;box-sizing:border-box"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          />
+          <%= if msg = @errors[:dt] do %>
+            <p style="font-size:0.72rem;color:#DC3545;margin-top:0.3rem">⚠ {msg}</p>
+          <% end %>
+          <p style="font-size:0.72rem;color:#8FA3C0;margin-top:0.3rem">
+            Prefilled from selected slot. You can still adjust exact date/time.
+          </p>
+        </div>
+
+        <div style="margin-bottom:1rem">
+          <label style="display:block;font-size:0.72rem;font-weight:700;color:#1A2744;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem">
+            Service Address *
+          </label>
+          <input
+            type="text"
+            value={@addr}
+            placeholder="Full address where service is needed"
+            phx-keyup="set_addr"
+            phx-value-value={@addr}
+            oninput="liveviewSetAddr(this.value)"
+            id="addr-input"
+            style="width:100%;padding:0.78rem 1rem;border:1.5px solid #E8E5DF;border-radius:10px;font-family:inherit;font-size:0.95rem;outline:none;box-sizing:border-box"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          />
+          <%= if msg = @errors[:addr] do %>
+            <p style="font-size:0.72rem;color:#DC3545;margin-top:0.3rem">⚠ {msg}</p>
+          <% end %>
+        </div>
+
+        <div style="margin-bottom:1.5rem">
+          <label style="display:block;font-size:0.72rem;font-weight:700;color:#1A2744;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem">
+            Additional Notes (Optional)
+          </label>
+          <textarea
+            rows="3"
+            placeholder="Describe the problem or any special requirements..."
+            phx-keyup="set_notes"
+            phx-value-value={@notes}
+            oninput="liveviewSetNotes(this.value)"
+            id="notes-input"
+            style="width:100%;padding:0.78rem 1rem;border:1.5px solid #E8E5DF;border-radius:10px;font-family:inherit;font-size:0.95rem;outline:none;resize:vertical;box-sizing:border-box"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          >{@notes}</textarea>
+        </div>
+
+        <div style="display:flex;gap:0.8rem">
+          <button
+            phx-click="save"
+            disabled={@submitting}
+            style="flex:1;padding:0.9rem;background:linear-gradient(135deg,#1A2744,#2A3F6B);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem"
+            onmouseover="if(!this.disabled)this.style.opacity='0.88'"
+            onmouseout="this.style.opacity='1'"
+          >
+            <%= if @submitting do %>
+              <span style="font-size:0.85rem">Sending...</span>
+            <% else %>
+              📅 Request Booking
+            <% end %>
+          </button>
+          <.link
+            navigate={~p"/user/book/#{@profile.id}"}
+            style="padding:0.9rem 1.4rem;border:1.5px solid #E8E5DF;border-radius:12px;color:#5B7096;text-decoration:none;font-weight:600;font-size:0.88rem;display:flex;align-items:center"
+          >
+            Back to slots
+          </.link>
+        </div>
+      </div>
+    <% end %>
+
+    <%= if @live_action == :confirm and is_nil(@selected_slot) do %>
+      <div style="background:#F8F8F6;border:1.5px solid #E8E5DF;border-radius:14px;padding:1rem;text-align:center;color:#5B7096;font-size:0.86rem">
+        Invalid slot selection. Please choose a slot again.
+        <.link
+          navigate={~p"/user/book/#{@profile.id}"}
+          style="margin-left:0.4rem;color:#1A2744;font-weight:700"
+        >
+          Open slots
+        </.link>
+      </div>
+    <% end %>
+  </div>
+
+  <script>
+    function debounce(fn, ms) {
+      let t;
+      return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+    }
+    const pushVal = debounce((event, val) => {
+      const el = document.getElementById('dt-input');
+      if (el && window.liveSocket) {
+        const view = window.liveSocket.getViewByEl(el);
+        if (view) view.pushEvent(event, {value: val});
+      }
+    }, 200);
+    window.liveviewSetDT    = (v) => pushVal('set_datetime', v);
+    window.liveviewSetAddr  = (v) => {
+      const el = document.getElementById('addr-input');
+      if (el && window.liveSocket) {
+        const view = window.liveSocket.getViewByEl(el);
+        if (view) view.pushEvent('set_addr', {value: v});
+      }
+    };
+    window.liveviewSetNotes = (v) => {
+      const el = document.getElementById('notes-input');
+      if (el && window.liveSocket) {
+        const view = window.liveSocket.getViewByEl(el);
+        if (view) view.pushEvent('set_notes', {value: v});
+      }
+    };
+  </script>
+</Layouts.app>

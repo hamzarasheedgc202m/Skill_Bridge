@@ -1,0 +1,130 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin Portal — SkillBridge</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      :root{--navy:#1A2744;--gold:#D4A853;--gold-light:#E8C47A;--cream:#FAFAF7;--border:#E2DDD5;--shadow:rgba(26,39,68,0.1);--red:#DC3545;--teal:#2E9B8B}
+      body{font-family:'DM Sans',sans-serif;background:var(--navy);min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+      body::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(212,168,83,0.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(46,155,139,0.06) 0%,transparent 50%)}
+      .card{background:rgba(255,255,255,0.97);border-radius:20px;padding:3rem;width:100%;max-width:460px;position:relative;z-index:2;box-shadow:0 32px 80px rgba(0,0,0,0.35)}
+      .card-top-bar{height:4px;background:linear-gradient(90deg,var(--gold),var(--gold-light),var(--teal));border-radius:20px 20px 0 0;position:absolute;top:0;left:0;right:0}
+      .shield-icon{width:64px;height:64px;background:linear-gradient(135deg,var(--navy),#2A3F6B);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 1.5rem;box-shadow:0 8px 24px rgba(26,39,68,0.3)}
+      h1{font-family:'Playfair Display',serif;font-size:1.8rem;color:var(--navy);text-align:center;margin-bottom:0.3rem}
+      .sub{font-size:0.85rem;color:#8FA3C0;text-align:center;margin-bottom:2rem}
+      .field-group{margin-bottom:1.1rem}
+      .field-label{display:block;font-size:0.75rem;font-weight:700;color:var(--navy);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.06em}
+      .field-input{width:100%;padding:0.82rem 1rem;border:1.5px solid var(--border);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.95rem;color:var(--navy);background:#fff;outline:none;transition:all 0.2s}
+      .field-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,168,83,0.15)}
+      .field-input.key-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(46,155,139,0.12)}
+      .field-wrap{position:relative}
+      .field-eye{position:absolute;right:0.9rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#8FA3C0;font-size:1rem;padding:0.2rem}
+      .field-eye:hover{color:var(--navy)}
+      .key-banner{background:rgba(212,168,83,0.08);border:1px solid rgba(212,168,83,0.25);border-radius:9px;padding:0.75rem 1rem;font-size:0.78rem;color:#8B6914;margin-bottom:1rem;display:flex;align-items:flex-start;gap:0.5rem}
+      .btn-submit{width:100%;padding:0.95rem;border:none;border-radius:10px;background:linear-gradient(135deg,var(--navy),#2A3F6B);color:#fff;font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:1.5rem}
+      .btn-submit:hover{background:linear-gradient(135deg,#2A3F6B,#3D4F6B);transform:translateY(-1px);box-shadow:0 8px 24px var(--shadow)}
+      .back-link{display:block;text-align:center;margin-top:1.2rem;font-size:0.85rem;color:#8FA3C0;text-decoration:none}
+      .back-link:hover{color:var(--navy)}
+      .flash-error{padding:0.75rem 1rem;border-radius:8px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.2);color:var(--red);font-size:0.85rem;margin-bottom:1.2rem;text-align:center}
+      .flash-info{padding:0.75rem 1rem;border-radius:8px;background:rgba(46,155,139,0.1);border:1px solid rgba(46,155,139,0.2);color:var(--teal);font-size:0.85rem;margin-bottom:1.2rem;text-align:center}
+      @keyframes fadeUp{from{opacity:0;transform:translateY(20px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+      .card{animation:fadeUp 0.4s ease}
+      .step-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8FA3C0;margin-bottom:0.5rem;display:block}
+      .steps{display:flex;gap:0.5rem;margin-bottom:1.5rem}
+      .step{flex:1;height:3px;background:var(--border);border-radius:2px;transition:background 0.3s}
+      .step.active{background:var(--gold)}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="card-top-bar"></div>
+
+      <div class="shield-icon">🛡️</div>
+      <h1>Admin Portal</h1>
+      <p class="sub">Restricted access · SkillBridge administrators only</p>
+
+      <%= if msg = Phoenix.Flash.get(@flash, :error) do %>
+        <div class="flash-error">⚠ {msg}</div>
+      <% end %>
+      <%= if msg = Phoenix.Flash.get(@flash, :info) do %>
+        <div class="flash-info">✓ {msg}</div>
+      <% end %>
+
+      <div class="steps">
+        <div class="step active"></div>
+        <div class="step active"></div>
+        <div class="step active"></div>
+      </div>
+
+      <form action={~p"/login"} method="post" id="admin-login-form">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <input type="hidden" name="admin_portal" value="1" />
+
+        <div class="field-group">
+          <label class="field-label" for="admin_email">Admin Email</label>
+          <div class="field-wrap">
+            <input
+              type="email"
+              id="admin_email"
+              name="user[email]"
+              placeholder="admin@skillbridge.local"
+              class="field-input"
+              required
+              autocomplete="username"
+            />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="admin_pw">Password</label>
+          <div class="field-wrap">
+            <input
+              type={if @show_password, do: "text", else: "password"}
+              id="admin_pw"
+              name="user[password]"
+              placeholder="••••••••"
+              class="field-input"
+              style="padding-right:3rem"
+              required
+              autocomplete="current-password"
+            />
+            <button type="button" class="field-eye" phx-click="toggle_password">
+              {if @show_password, do: "🙈", else: "👁"}
+            </button>
+          </div>
+        </div>
+
+        <div class="key-banner">
+          🔑 The admin secret key is a separate platform key set by your system administrator. It is different from your login password.
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="admin_key">Admin Secret Key</label>
+          <div class="field-wrap">
+            <input
+              type={if @show_key, do: "text", else: "password"}
+              id="admin_key"
+              name="user[admin_key]"
+              placeholder="Enter platform admin key"
+              class="field-input key-input"
+              style="padding-right:3rem"
+              required
+            />
+            <button type="button" class="field-eye" phx-click="toggle_key">
+              {if @show_key, do: "🙈", else: "👁"}
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit">🔐 Authenticate as Admin</button>
+      </form>
+
+      <a href={~p"/login"} class="back-link">← Back to regular login</a>
+    </div>
+  </body>
+</html>

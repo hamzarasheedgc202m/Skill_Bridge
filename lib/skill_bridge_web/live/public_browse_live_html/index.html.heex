@@ -1,0 +1,373 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  
+<!-- Login modal -->
+  <%= if @show_login_prompt do %>
+    <div
+      style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center"
+      phx-click="dismiss_prompt"
+    >
+      <div style="background:#fff;border-radius:20px;padding:2.5rem;max-width:400px;width:90%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.2)">
+        <div style="font-size:3rem;margin-bottom:1rem">🔐</div>
+        <h2 style="font-size:1.3rem;font-weight:700;color:#1A2744;margin-bottom:0.5rem">
+          Login Required
+        </h2>
+        <p style="color:#5B7096;font-size:0.88rem;margin-bottom:1.5rem">
+          Create a free account or sign in to book a professional.
+        </p>
+        <div style="display:flex;gap:0.8rem;justify-content:center">
+          <a
+            href="/register?role=user"
+            style="padding:0.65rem 1.4rem;background:#1A2744;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.88rem"
+          >
+            Register Free
+          </a>
+          <a
+            href="/login"
+            style="padding:0.65rem 1.2rem;background:transparent;color:#1A2744;border:1.5px solid #1A2744;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.88rem"
+          >
+            Sign In
+          </a>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Header -->
+  <div style="margin-bottom:1.2rem">
+    <h1 style="font-size:1.7rem;font-weight:700;color:#1A2744;margin-bottom:0.2rem">
+      🔍 Browse Professionals
+    </h1>
+    <p style="font-size:0.85rem;color:#8FA3C0">
+      {length(@profiles)} professional(s) found · Login to book
+    </p>
+  </div>
+  
+<!-- ── Category pills ── -->
+  <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1.2rem">
+    <button
+      phx-click="select_category"
+      phx-value-id=""
+      style={"padding:0.4rem 0.9rem;border-radius:100px;font-size:0.8rem;font-weight:600;border:1.5px solid;cursor:pointer;transition:all 0.15s;#{if is_nil(@selected_category_id), do: "background:#1A2744;color:#fff;border-color:#1A2744", else: "background:#fff;color:#5B7096;border-color:#E8E5DF"}"}
+    >
+      All
+    </button>
+    <%= for cat <- @categories do %>
+      <button
+        phx-click="select_category"
+        phx-value-id={cat.id}
+        style={"padding:0.4rem 0.9rem;border-radius:100px;font-size:0.8rem;font-weight:600;border:1.5px solid;cursor:pointer;transition:all 0.15s;#{if @selected_category_id == cat.id, do: "background:#1A2744;color:#fff;border-color:#1A2744", else: "background:#fff;color:#5B7096;border-color:#E8E5DF"}"}
+      >
+        {cat_icon(cat.slug)} {cat.name}
+      </button>
+    <% end %>
+  </div>
+  
+<!-- ── 3-way location search ── -->
+  <div style="background:#fff;border:1.5px solid #E8E5DF;border-radius:16px;padding:1.2rem;margin-bottom:1.2rem">
+    <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.8rem">
+      📍 Filter by Location
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.7rem;margin-bottom:0.7rem">
+      
+<!-- 1: Province dropdown -->
+      <div>
+        <label style="display:block;font-size:0.7rem;font-weight:600;color:#5B7096;margin-bottom:0.3rem">
+          ① Province
+        </label>
+        <form phx-change="filter_province">
+          <select
+            name="province"
+            style="width:100%;padding:0.6rem 0.8rem;border:1.5px solid #E8E5DF;border-radius:9px;font-size:0.82rem;outline:none;background:#fff;cursor:pointer;font-family:inherit"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          >
+            <option value="">All Provinces</option>
+            <%= for p <- SkillBridge.PakistanLocations.provinces() do %>
+              <option value={p} selected={@province_filter == p}>{p}</option>
+            <% end %>
+          </select>
+        </form>
+      </div>
+      
+<!-- 2: City dropdown -->
+      <div>
+        <label style="display:block;font-size:0.7rem;font-weight:600;color:#5B7096;margin-bottom:0.3rem">
+          ② City / District
+        </label>
+        <form phx-change="filter_city">
+          <select
+            name="city"
+            style="width:100%;padding:0.6rem 0.8rem;border:1.5px solid #E8E5DF;border-radius:9px;font-size:0.82rem;outline:none;background:#fff;cursor:pointer;font-family:inherit"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          >
+            <option value="">All Cities</option>
+            <%= if @province_filter != "" do %>
+              <%= for d <- SkillBridge.PakistanLocations.districts(@province_filter) do %>
+                <optgroup label={d}>
+                  <%= for c <- SkillBridge.PakistanLocations.cities(@province_filter, d) do %>
+                    <option value={c} selected={@city_filter == c}>{c}</option>
+                  <% end %>
+                </optgroup>
+              <% end %>
+            <% else %>
+              <%= for c <- Enum.take(SkillBridge.PakistanLocations.all_cities(), 50) do %>
+                <option value={c} selected={@city_filter == c}>{c}</option>
+              <% end %>
+            <% end %>
+          </select>
+        </form>
+      </div>
+      
+<!-- 3: Free text for villages/areas not in list -->
+      <div>
+        <label style="display:block;font-size:0.7rem;font-weight:600;color:#5B7096;margin-bottom:0.3rem">
+          ③ Village / Area (custom)
+        </label>
+        <form phx-change="filter_custom">
+          <input
+            type="text"
+            name="custom"
+            value={@custom_location}
+            placeholder="e.g. Chak 15 NB, Model Town..."
+            style="width:100%;padding:0.6rem 0.8rem;border:1.5px solid #E8E5DF;border-radius:9px;font-size:0.82rem;outline:none;font-family:inherit;box-sizing:border-box"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          />
+        </form>
+      </div>
+    </div>
+    
+<!-- Live location + text search row -->
+    <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap">
+      <button
+        id="get-location-btn"
+        onclick="getMyLocationBrowse()"
+        style="padding:0.5rem 1rem;background:#F0FDF4;color:#065F46;border:1.5px solid #BBF7D0;border-radius:9px;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem;white-space:nowrap"
+      >
+        📡 Detect My Location
+      </button>
+      <%= if @user_lat do %>
+        <span style="font-size:0.75rem;color:#2E9B8B;font-weight:500">
+          ✓ Location detected — showing nearest results
+        </span>
+      <% end %>
+      <div style="flex:1;min-width:160px">
+        <form phx-change="filter_region">
+          <input
+            type="text"
+            name="region"
+            value={@region}
+            placeholder="🔍 Search any area..."
+            style="width:100%;padding:0.5rem 0.8rem;border:1.5px solid #E8E5DF;border-radius:9px;font-size:0.82rem;outline:none;font-family:inherit;box-sizing:border-box"
+            onfocus="this.style.borderColor='#2E9B8B'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          />
+        </form>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <form phx-change="search">
+          <input
+            type="text"
+            name="q"
+            value={@search}
+            placeholder="🔎 Search by name, skill, city..."
+            style="width:100%;padding:0.5rem 0.8rem;border:1.5px solid #E8E5DF;border-radius:9px;font-size:0.82rem;outline:none;font-family:inherit;box-sizing:border-box"
+            onfocus="this.style.borderColor='#6366F1'"
+            onblur="this.style.borderColor='#E8E5DF'"
+          />
+        </form>
+      </div>
+      <%= if any_filter?(assigns) do %>
+        <button
+          phx-click="clear"
+          style="padding:0.5rem 0.9rem;border:1.5px solid #FECACA;color:#DC3545;background:#FEF2F2;border-radius:9px;font-size:0.8rem;font-weight:600;cursor:pointer;white-space:nowrap"
+        >
+          ✕ Clear all
+        </button>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- ── Results grid ── -->
+  <%= if @profiles != [] do %>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1.1rem">
+      <%= for profile <- @profiles do %>
+        <% dist =
+          if Map.get(profile, :latitude) && @user_lat,
+            do:
+              haversine(
+                @user_lat,
+                @user_lng,
+                Map.get(profile, :latitude),
+                Map.get(profile, :longitude)
+              ),
+            else: nil %>
+        <div
+          style="background:#fff;border:1.5px solid #E8E5DF;border-radius:16px;overflow:hidden;transition:all 0.2s;display:flex;flex-direction:column"
+          onmouseover="this.style.boxShadow='0 8px 24px rgba(26,39,68,0.1)';this.style.transform='translateY(-2px)'"
+          onmouseout="this.style.boxShadow='none';this.style.transform='none'"
+        >
+          
+<!-- Card top accent -->
+          <div style="height:3px;background:linear-gradient(90deg,#1A2744,#2E9B8B)"></div>
+
+          <div style="padding:1.2rem;flex:1;display:flex;flex-direction:column">
+            <!-- Header with image -->
+            <div style="display:flex;align-items:flex-start;gap:0.8rem;margin-bottom:0.9rem">
+              <div style="flex-shrink:0">
+                <%= if profile.profile_image_url && profile.profile_image_url != "" do %>
+                  <img
+                    src={profile.profile_image_url}
+                    style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2.5px solid #E8E5DF"
+                    onerror="this.style.display='none';this.nextSibling.style.display='flex'"
+                  />
+                  <div style="display:none;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2E9B8B);align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem">
+                    {String.first(profile.user.name)}
+                  </div>
+                <% else %>
+                  <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2E9B8B);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem">
+                    {String.first(profile.user.name)}
+                  </div>
+                <% end %>
+              </div>
+              <div style="flex:1;min-width:0">
+                <p style="font-weight:700;color:#1A2744;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  {profile.user.name}
+                </p>
+                <span style="display:inline-block;padding:0.18rem 0.55rem;background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0;border-radius:100px;font-size:0.7rem;font-weight:600;margin-top:0.2rem">
+                  {cat_icon(profile.skill_category.slug)} {profile.skill_category.name}
+                </span>
+              </div>
+              <%= if dist do %>
+                <span style="font-size:0.7rem;color:#2E9B8B;font-weight:600;flex-shrink:0;white-space:nowrap">
+                  📏 {dist}km
+                </span>
+              <% end %>
+            </div>
+            
+<!-- Location -->
+            <p style="font-size:0.78rem;color:#8FA3C0;margin-bottom:0.5rem">
+              📍 {cond do
+                profile.city && profile.city != "" ->
+                  "#{profile.city}#{if profile.district && profile.district != "", do: ", #{profile.district}"}"
+
+                profile.region && profile.region != "" ->
+                  profile.region
+
+                true ->
+                  "Location not set"
+              end}
+            </p>
+            
+<!-- Bio -->
+            <%= if profile.bio do %>
+              <p style="font-size:0.8rem;color:#5B7096;line-height:1.5;margin-bottom:0.7rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1">
+                {profile.bio}
+              </p>
+            <% end %>
+            
+<!-- Rate + availability -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.9rem;flex-wrap:wrap;gap:0.3rem">
+              <%= if profile.hourly_rate_cents do %>
+                <span style="font-size:0.82rem;font-weight:700;color:#D97706">
+                  💰 PKR {profile.hourly_rate_cents}/hr
+                </span>
+              <% end %>
+              <%= if profile.availability_slots != [] do %>
+                <span style="font-size:0.7rem;color:#8FA3C0">
+                  🕐 {Enum.take(profile.availability_slots, 2)
+                  |> Enum.map(&SkillBridge.Skills.AvailabilitySlot.day_name(&1.day_of_week))
+                  |> Enum.join(", ")}
+                  {if length(profile.availability_slots) > 2, do: " +more"}
+                </span>
+              <% end %>
+            </div>
+            
+<!-- Book button -->
+            <%= if @current_user do %>
+              <.link
+                navigate={~p"/user/book/#{profile.id}"}
+                style="display:block;width:100%;text-align:center;padding:0.65rem;background:#1A2744;color:#fff;border-radius:10px;font-size:0.86rem;font-weight:600;text-decoration:none;transition:background 0.15s;box-sizing:border-box"
+                onmouseover="this.style.background='#2A3F6B'"
+                onmouseout="this.style.background='#1A2744'"
+              >
+                Book Now →
+              </.link>
+            <% else %>
+              <button
+                phx-click="book_click"
+                style="width:100%;padding:0.65rem;background:#1A2744;color:#fff;border:none;border-radius:10px;font-size:0.86rem;font-weight:600;cursor:pointer;transition:background 0.15s"
+                onmouseover="this.style.background='#2A3F6B'"
+                onmouseout="this.style.background='#1A2744'"
+              >
+                Book Now →
+              </button>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div style="text-align:center;padding:4rem 2rem;background:#fff;border-radius:16px;border:1.5px solid #E8E5DF">
+      <div style="font-size:3rem;margin-bottom:0.8rem">🔍</div>
+      <h3 style="font-weight:600;color:#1A2744;margin-bottom:0.4rem">No professionals found</h3>
+      <p style="font-size:0.85rem;color:#8FA3C0;margin-bottom:1rem">
+        Try a different category, province, or city
+      </p>
+      <button
+        phx-click="clear"
+        style="padding:0.6rem 1.2rem;border:1.5px solid #E8E5DF;border-radius:8px;background:#fff;cursor:pointer;font-size:0.85rem;color:#5B7096;font-weight:500"
+      >
+        Clear all filters
+      </button>
+    </div>
+  <% end %>
+  
+<!-- Guest CTA -->
+  <%= unless @current_user do %>
+    <div style="margin-top:2.5rem;padding:2rem;background:linear-gradient(135deg,#1A2744,#2A3F6B);border-radius:16px;text-align:center;color:#fff">
+      <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:0.5rem">Ready to hire?</h3>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.85rem;margin-bottom:1.2rem">
+        Create a free account in 30 seconds to book any professional.
+      </p>
+      <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
+        <a
+          href="/register?role=user"
+          style="padding:0.65rem 1.5rem;background:#fff;color:#1A2744;border-radius:10px;text-decoration:none;font-size:0.88rem;font-weight:700"
+        >
+          Register Free
+        </a>
+        <a
+          href="/login"
+          style="padding:0.65rem 1.3rem;border:1.5px solid rgba(255,255,255,0.3);color:#fff;border-radius:10px;text-decoration:none;font-size:0.88rem;font-weight:600"
+        >
+          Sign In
+        </a>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Geolocation JS -->
+  <script>
+    function getMyLocationBrowse() {
+      const btn = document.getElementById('get-location-btn');
+      if (!navigator.geolocation) { alert('Geolocation not supported by your browser.'); return; }
+      if (btn) btn.textContent = '⏳ Detecting...';
+      navigator.geolocation.getCurrentPosition(pos => {
+        if (btn) btn.textContent = '✓ Location detected';
+        const el = document.querySelector('[phx-hook="LeafletMap"]') || document.body;
+        if (window.liveSocket) {
+          // Push to the current live view
+          const views = Object.values(window.liveSocket.roots || {});
+          const view = views[0];
+          if (view) view.pushEvent("user_location", {lat: pos.coords.latitude, lng: pos.coords.longitude});
+        }
+      }, () => {
+        if (btn) btn.textContent = '📡 Detect My Location';
+        alert('Location access denied. Please allow location access in your browser settings.');
+      });
+    }
+  </script>
+</Layouts.app>

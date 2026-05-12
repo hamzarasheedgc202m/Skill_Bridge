@@ -1,0 +1,85 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-3xl font-bold">{@category.name} Professionals</h1>
+      <p class="text-base-content/70">Choose a professional and open their booking page.</p>
+    </div>
+    <.link navigate={~p"/user/browse"} class="btn btn-outline btn-sm">
+      <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to categories
+    </.link>
+  </div>
+
+  <div class="mb-6 card border border-base-300 bg-base-100 p-4">
+    <form phx-change="filter_region" class="flex flex-wrap items-end gap-3">
+      <.input
+        id="filter-region"
+        type="text"
+        name="region"
+        value={@region}
+        label="Filter by region"
+        placeholder="e.g. Downtown, North Side"
+        class="w-full"
+      />
+      <%= if @region != "" do %>
+        <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
+          Clear
+        </button>
+      <% end %>
+    </form>
+  </div>
+
+  <%= if @profiles == [] do %>
+    <div class="rounded-xl border border-dashed border-base-300 bg-base-100 p-10 text-center">
+      <h2 class="text-xl font-semibold">No professionals found</h2>
+      <p class="mt-2 text-base-content/70">
+        Try another region or go back and choose a different service category.
+      </p>
+    </div>
+  <% else %>
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <%= for profile <- @profiles do %>
+        <div class="card border border-base-300 bg-base-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <div class="card-body">
+            <div class="mb-3 flex items-center gap-3">
+              <div class="avatar placeholder">
+                <div class="h-12 w-12 rounded-full bg-primary text-primary-content">
+                  <span>{String.first(profile.user.name)}</span>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold">{profile.user.name}</h3>
+                <p class="text-sm text-base-content/70">{profile.region}</p>
+              </div>
+            </div>
+
+            <%= if profile.bio && profile.bio != "" do %>
+              <p class="mb-3 text-sm text-base-content/80">{profile.bio}</p>
+            <% end %>
+
+            <%= if profile.availability_slots != [] do %>
+              <div class="mb-4">
+                <p class="mb-1 text-xs font-medium uppercase tracking-wide text-base-content/60">
+                  Availability
+                </p>
+                <div class="flex flex-wrap gap-1">
+                  <%= for slot <- Enum.take(profile.availability_slots, 3) do %>
+                    <span class="badge badge-ghost badge-sm">
+                      {AvailabilitySlot.day_name(slot.day_of_week)} {Calendar.strftime(
+                        slot.start_time,
+                        "%H:%M"
+                      )}
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+
+            <.link navigate={~p"/user/book/#{profile.id}"} class="btn btn-primary w-full">
+              Book now
+            </.link>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</Layouts.app>

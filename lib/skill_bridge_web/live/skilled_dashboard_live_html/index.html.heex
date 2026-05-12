@@ -1,0 +1,321 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <%!-- ── HEADER + mini speedometer ── --%>
+  <div class="relative mb-5 flex items-start justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-bold text-base-content truncate">Welcome, {@current_user.name}</h1>
+      <p class="mt-1 text-sm text-base-content/60">
+        <%= if @profile do %>
+          <span class="font-medium">{@profile.skill_category.name}</span>
+          · {@profile.region}
+          <%= if SkillBridge.Skills.SkilledProfile.approved?(@profile) do %>
+            <span class="ml-1 font-semibold text-success">· Approved ✓</span>
+          <% else %>
+            <span class="ml-1 font-semibold text-warning">· Pending approval</span>
+          <% end %>
+        <% else %>
+          Set up your profile to start receiving bookings
+        <% end %>
+      </p>
+    </div>
+
+    <%!-- Speedometer completion widget — small, corner, clickable --%>
+    <%= if @profile do %>
+      <.link
+        navigate={~p"/skilled/profile"}
+        title={"Profile #{@completion.percent}% complete – click to edit"}
+        class="group flex-shrink-0 flex flex-col items-center gap-0.5 focus:outline-none"
+      >
+        <svg
+          viewBox="0 0 80 80"
+          class="w-16 h-16 transition-transform duration-200 group-hover:scale-110 drop-shadow-md"
+          aria-hidden="true"
+        >
+          <%!-- Background track --%>
+          <circle cx="40" cy="40" r="30" fill="none" stroke="#e5e7eb" stroke-width="8" />
+          <%!-- Progress arc --%>
+          <circle
+            cx="40"
+            cy="40"
+            r="30"
+            fill="none"
+            stroke={if @completion.percent == 100, do: "#22c55e", else: "#f97316"}
+            stroke-width="8"
+            stroke-dasharray="188.5"
+            stroke-dashoffset={Float.round(188.5 * (1 - @completion.percent / 100), 1)}
+            stroke-linecap="round"
+            transform="rotate(-90 40 40)"
+          />
+          <%!-- Percentage text --%>
+          <text
+            x="40"
+            y="38"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="15"
+            font-weight="700"
+            fill="currentColor"
+          >
+            {@completion.percent}%
+          </text>
+          <text
+            x="40"
+            y="53"
+            text-anchor="middle"
+            font-size="8"
+            fill="currentColor"
+            opacity="0.45"
+          >
+            PROFILE
+          </text>
+        </svg>
+        <span class="text-xs text-base-content/40 group-hover:text-primary transition-colors font-medium">
+          {@completion.completed}/{@completion.total} done
+        </span>
+      </.link>
+    <% end %>
+  </div>
+
+  <%!-- ── STATS ROW ── --%>
+  <% pkr = trunc((@earnings_cents || 0) / 100) %>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 border border-emerald-500/25 p-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-1">
+        Total Earnings
+      </p>
+      <p class="text-xl font-bold text-emerald-600">PKR {pkr}</p>
+      <p class="text-xs text-base-content/40 mt-0.5">completed bookings</p>
+    </div>
+    <div class="rounded-2xl bg-gradient-to-br from-blue-500/15 to-blue-600/5 border border-blue-500/25 p-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-1">
+        Total Bookings
+      </p>
+      <p class="text-xl font-bold text-blue-600">{length(@bookings)}</p>
+      <p class="text-xs text-base-content/40 mt-0.5">all time</p>
+    </div>
+    <div class="rounded-2xl bg-gradient-to-br from-amber-500/15 to-amber-600/5 border border-amber-500/25 p-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-1">
+        Today
+      </p>
+      <p class="text-xl font-bold text-amber-600">{length(@today_bookings)}</p>
+      <p class="text-xs text-base-content/40 mt-0.5">appointments</p>
+    </div>
+    <div class="rounded-2xl bg-gradient-to-br from-violet-500/15 to-violet-600/5 border border-violet-500/25 p-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-1">
+        Slots Set
+      </p>
+      <p class="text-xl font-bold text-violet-600">{length(@slots)}</p>
+      <p class="text-xs text-base-content/40 mt-0.5">weekly slots</p>
+    </div>
+  </div>
+
+  <%!-- ── CLOCK + ACTIVE SLOT + TODAY'S BOOKINGS ── --%>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+    <%!-- Digital Clock Panel --%>
+    <div class="rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800 p-5 flex flex-col gap-4">
+      <%!-- Digital time display --%>
+      <div class="text-center">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">
+          🕐 Pakistan Standard Time
+        </p>
+        <div class="inline-flex items-center gap-1 font-mono rounded-xl px-4 py-2 bg-black/30 border border-slate-600/50">
+          <span
+            class="text-4xl font-bold text-emerald-400 tabular-nums leading-none tracking-wider"
+            style="text-shadow: 0 0 20px rgba(52,211,153,0.6)"
+          >
+            {String.pad_leading(Integer.to_string(@now.hour), 2, "0")}
+          </span>
+          <span class="text-3xl text-emerald-600 font-bold animate-pulse">:</span>
+          <span
+            class="text-4xl font-bold text-emerald-400 tabular-nums leading-none tracking-wider"
+            style="text-shadow: 0 0 20px rgba(52,211,153,0.6)"
+          >
+            {String.pad_leading(Integer.to_string(@now.minute), 2, "0")}
+          </span>
+          <span class="text-3xl text-emerald-600 font-bold animate-pulse">:</span>
+          <span
+            class="text-4xl font-bold text-emerald-300 tabular-nums leading-none tracking-wider"
+            style="text-shadow: 0 0 20px rgba(52,211,153,0.5)"
+          >
+            {String.pad_leading(Integer.to_string(@now.second), 2, "0")}
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">
+          {Calendar.strftime(DateTime.to_date(@now), "%A, %d %B %Y")}
+        </p>
+      </div>
+
+      <%!-- Active slot indicator --%>
+      <div class="rounded-xl border p-3">
+        <%= if @active_slot do %>
+          <% start_str =
+            @active_slot.start_time
+            |> then(fn t ->
+              "#{String.pad_leading(Integer.to_string(t.hour), 2, "0")}:#{String.pad_leading(Integer.to_string(t.minute), 2, "0")}"
+            end) %>
+          <% end_str =
+            @active_slot.end_time
+            |> then(fn t ->
+              "#{String.pad_leading(Integer.to_string(t.hour), 2, "0")}:#{String.pad_leading(Integer.to_string(t.minute), 2, "0")}"
+            end) %>
+          <div
+            class="flex items-center justify-between flex-wrap gap-2"
+            style="border-color: #22c55e33"
+          >
+            <div>
+              <p class="text-xs font-semibold text-emerald-400 uppercase tracking-wide">
+                🟢 Active Slot
+              </p>
+              <p class="text-sm font-bold text-white mt-0.5">{start_str} – {end_str}</p>
+            </div>
+            <%= if @countdown_secs do %>
+              <% ch = div(@countdown_secs, 3600) %>
+              <% cm = div(rem(@countdown_secs, 3600), 60) %>
+              <% cs = rem(@countdown_secs, 60) %>
+              <div class="text-right">
+                <p class="text-xs text-slate-400">Ends in</p>
+                <p
+                  class="font-mono text-lg font-bold text-amber-400 tabular-nums"
+                  style="text-shadow: 0 0 10px rgba(251,191,36,0.5)"
+                >
+                  {String.pad_leading(Integer.to_string(ch), 2, "0")}:{String.pad_leading(
+                    Integer.to_string(cm),
+                    2,
+                    "0"
+                  )}:{String.pad_leading(Integer.to_string(cs), 2, "0")}
+                </p>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-1" style="border-color: #4b556344">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">⬜ No Active Slot</p>
+            <p class="text-xs text-slate-600 mt-0.5">
+              <%= if length(@slots) > 0 do %>
+                You have {length(@slots)} slot(s) set —
+                <.link navigate={~p"/skilled/availability"} class="text-blue-400 hover:underline">
+                  manage schedule
+                </.link>
+              <% else %>
+                <.link navigate={~p"/skilled/availability"} class="text-blue-400 hover:underline">
+                  Set your availability →
+                </.link>
+              <% end %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%!-- Today's Appointments --%>
+    <div class="rounded-2xl border border-base-300 bg-base-100 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <p class="font-semibold text-base-content">📅 Today's Appointments</p>
+        <.link
+          navigate={~p"/skilled/bookings"}
+          class="text-xs text-primary hover:underline font-medium"
+        >
+          View all →
+        </.link>
+      </div>
+
+      <%= if length(@today_bookings) == 0 do %>
+        <div class="flex flex-col items-center justify-center py-8 text-center">
+          <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mb-3">
+            <.icon name="hero-calendar-days" class="w-6 h-6 text-base-content/30" />
+          </div>
+          <p class="text-sm text-base-content/50">No appointments today</p>
+          <.link
+            navigate={~p"/skilled/bookings"}
+            class="mt-2 text-xs text-primary hover:underline"
+          >
+            Check all bookings
+          </.link>
+        </div>
+      <% else %>
+        <div class="flex flex-col gap-2">
+          <%= for booking <- @today_bookings do %>
+            <% time_str =
+              if booking.scheduled_at,
+                do: Calendar.strftime(booking.scheduled_at, "%I:%M %p"),
+                else: "—" %>
+            <.link
+              navigate={~p"/skilled/bookings"}
+              class="flex items-center gap-3 rounded-xl border border-base-300 bg-base-50 px-3 py-2.5 hover:border-primary transition-colors group"
+            >
+              <div class="text-center min-w-[48px]">
+                <p class="text-xs font-bold text-base-content/80 leading-tight">{time_str}</p>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-base-content truncate">
+                  {booking.user.name}
+                </p>
+                <p class="text-xs text-base-content/50 truncate">
+                  {booking.skilled_profile.skill_category.name}
+                </p>
+              </div>
+              <span class={[
+                "shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full",
+                if(booking.status == "confirmed",
+                  do: "bg-emerald-100 text-emerald-700",
+                  else: "bg-amber-100 text-amber-700"
+                )
+              ]}>
+                {booking.status}
+              </span>
+            </.link>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- ── QUICK ACTION CARDS ── --%>
+  <%= if @profile do %>
+    <p class="text-base-content/70 mb-3 text-sm">
+      You are registered as <strong>{@profile.skill_category.name}</strong> in {@profile.region}.
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <.link
+        navigate={~p"/skilled/profile"}
+        class="card bg-base-200 border border-base-300 rounded-xl p-6 hover:border-primary transition-all duration-200 hover:shadow-md group"
+      >
+        <span class="text-primary">
+          <.icon
+            name="hero-user-circle"
+            class="w-10 h-10 group-hover:scale-110 transition-transform"
+          />
+        </span>
+        <h2 class="font-semibold text-lg mt-2">My Profile</h2>
+        <p class="text-sm text-base-content/70">Edit your profile and region</p>
+      </.link>
+      <.link
+        navigate={~p"/skilled/availability"}
+        class="card bg-base-200 border border-base-300 rounded-xl p-6 hover:border-primary transition-all duration-200 hover:shadow-md group"
+      >
+        <span class="text-primary">
+          <.icon name="hero-clock" class="w-10 h-10 group-hover:scale-110 transition-transform" />
+        </span>
+        <h2 class="font-semibold text-lg mt-2">Availability</h2>
+        <p class="text-sm text-base-content/70">Set your working hours</p>
+      </.link>
+      <.link
+        navigate={~p"/skilled/bookings"}
+        class="card bg-base-200 border border-base-300 rounded-xl p-6 hover:border-primary transition-all duration-200 hover:shadow-md group"
+      >
+        <span class="text-primary">
+          <.icon
+            name="hero-calendar-days"
+            class="w-10 h-10 group-hover:scale-110 transition-transform"
+          />
+        </span>
+        <h2 class="font-semibold text-lg mt-2">My Bookings</h2>
+        <p class="text-sm text-base-content/70">View and manage bookings</p>
+      </.link>
+    </div>
+  <% else %>
+    <p class="text-base-content/70 mb-6">
+      Create your skilled profile to start receiving bookings.
+    </p>
+    <.link navigate={~p"/skilled/profile"} class="btn btn-primary">Create profile</.link>
+  <% end %>
+</Layouts.app>

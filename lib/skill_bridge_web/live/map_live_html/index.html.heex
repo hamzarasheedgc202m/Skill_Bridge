@@ -1,0 +1,206 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="space-y-5">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Live Worker Map</h1>
+        <p class="mt-1 text-sm text-slate-500">
+          {length(@workers)} professional(s) are sharing live location.
+        </p>
+        <%= if @live_booking do %>
+          <p class="mt-2 rounded-xl border border-teal-200 bg-teal-50/80 px-3 py-2 text-sm text-teal-900">
+            Booking #{@live_booking.id}: live map is shared only between you and your professional.
+            Your GPS is sent only when you tap “Detect My Location”.
+          </p>
+        <% end %>
+      </div>
+      <button
+        id="location-btn"
+        phx-click="detect_my_location"
+        class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-400 hover:shadow"
+      >
+        <.icon name="hero-map-pin" class="size-4" /> Detect My Location
+      </button>
+    </div>
+
+    <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3">
+      <form phx-change="filter_category" class="space-y-1">
+        <label
+          for="category_id"
+          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+        >
+          Category
+        </label>
+        <select
+          id="category_id"
+          name="category_id"
+          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+        >
+          <option value="">All Categories</option>
+          <%= for cat <- @categories do %>
+            <option value={cat.id} selected={@filter_category == to_string(cat.id)}>
+              {cat.name}
+            </option>
+          <% end %>
+        </select>
+      </form>
+
+      <form phx-change="filter_city" class="space-y-1">
+        <label
+          for="city_filter"
+          class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+        >
+          City
+        </label>
+        <input
+          id="city_filter"
+          name="city"
+          value={@city_filter}
+          placeholder="Type city name"
+          list="city-list"
+          class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+        />
+        <datalist id="city-list">
+          <%= for city <- @city_options do %>
+            <option value={city}>{city}</option>
+          <% end %>
+        </datalist>
+      </form>
+
+      <div class="space-y-1">
+        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Detected Location
+        </label>
+        <input
+          value={@location_label || ""}
+          readonly
+          placeholder="Use 'Detect My Location' to auto-fill"
+          class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+        />
+      </div>
+    </div>
+
+    <div class="grid h-[40rem] gap-4 lg:grid-cols-[1fr_20rem]">
+      <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+        <div
+          id="skill-map"
+          phx-hook="LeafletMap"
+          phx-update="ignore"
+          data-booking-id={@live_booking_id || ""}
+          data-workers={
+            Jason.encode!(
+              Enum.map(workers_for_map(@workers, @filter_category, @city_filter), fn w ->
+                %{
+                  id: w.skilled_profile_id,
+                  lat: w.latitude,
+                  lng: w.longitude,
+                  name: w.skilled_profile.user.name,
+                  skill: w.skilled_profile.skill_category.name,
+                  rate: w.skilled_profile.hourly_rate_cents
+                }
+              end)
+            )
+          }
+          data-user-lat={@user_lat}
+          data-user-lng={@user_lng}
+          class="h-full w-full"
+        >
+        </div>
+
+        <%= if workers_for_map(@workers, @filter_category, @city_filter) == [] do %>
+          <div class="absolute inset-0 grid place-items-center bg-white/85">
+            <div class="text-center">
+              <p class="text-base font-semibold text-slate-800">
+                No workers sharing location right now
+              </p>
+              <p class="mt-1 text-sm text-slate-500">
+                Workers appear when they enable location sharing.
+              </p>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="space-y-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3">
+        <%= if @selected_worker do %>
+          <% w = @selected_worker %>
+          <div class="rounded-xl border border-slate-800 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-base font-bold text-slate-900">{w.skilled_profile.user.name}</h3>
+              <button
+                phx-click="close_worker"
+                class="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+            <div class="space-y-1.5 text-sm">
+              <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                {w.skilled_profile.skill_category.name}
+              </span>
+              <%= if w.skilled_profile.hourly_rate_cents do %>
+                <p class="font-semibold text-amber-600">
+                  PKR {w.skilled_profile.hourly_rate_cents}/hr
+                </p>
+              <% end %>
+              <p class="text-slate-500">
+                📍 Approximate area (location privacy protected)
+              </p>
+              <%= if dist = distance(@user_lat, @user_lng, w.latitude, w.longitude) do %>
+                <p class="font-semibold text-emerald-700">{dist} km away</p>
+              <% end %>
+              <p class="text-xs text-slate-400">Live updates enabled</p>
+            </div>
+            <%= if @current_user && @current_user.role == "user" do %>
+              <.link
+                navigate={~p"/user/book/#{w.skilled_profile_id}"}
+                class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Book Now
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+
+        <p class="px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {length(workers_for_map(@workers, @filter_category, @city_filter))} Live Workers
+        </p>
+        <%= for w <- workers_for_map(@workers, @filter_category, @city_filter) do %>
+          <button
+            type="button"
+            phx-click="select_worker"
+            phx-value-profile_id={w.skilled_profile_id}
+            class={[
+              "w-full rounded-xl border bg-white px-4 py-3 text-left transition hover:border-slate-500",
+              if(@selected_worker && @selected_worker.skilled_profile_id == w.skilled_profile_id,
+                do: "border-slate-800",
+                else: "border-slate-200"
+              )
+            ]}
+          >
+            <div class="flex items-center gap-3">
+              <div class="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-slate-900 to-teal-600 text-sm font-bold text-white">
+                {String.first(w.skilled_profile.user.name)}
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-slate-900">
+                  {w.skilled_profile.user.name}
+                </p>
+                <p class="text-xs text-slate-500">{w.skilled_profile.skill_category.name}</p>
+              </div>
+              <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </div>
+            <%= if dist = distance(@user_lat, @user_lng, w.latitude, w.longitude) do %>
+              <p class="mt-1 pl-12 text-xs text-emerald-700">{dist} km away</p>
+            <% end %>
+          </button>
+        <% end %>
+      </div>
+    </div>
+
+    <.step_navigation back={~p"/"} next={~p"/user/browse"} next_label="Browse Workers" />
+  </div>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+</Layouts.app>

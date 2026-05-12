@@ -1,0 +1,71 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="max-w-lg">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold" style="color:#1A2744">⚙️ Platform Settings</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        Configure platform fee charged on each booking payment
+      </p>
+    </div>
+
+    <div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+      <h3 class="font-semibold text-gray-900 mb-4">Platform Fee</h3>
+      
+<!-- Fee type -->
+      <div class="mb-4">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+          Fee Type
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            phx-click="set_type"
+            phx-value-type="percentage"
+            class={"p-3 rounded-xl border-2 text-sm font-medium transition-all #{if @fee_type == "percentage", do: "border-slate-800 bg-slate-50 text-slate-800", else: "border-gray-200 text-gray-600 hover:border-gray-300"}"}
+          >
+            % Percentage
+          </button>
+          <button
+            phx-click="set_type"
+            phx-value-type="fixed"
+            class={"p-3 rounded-xl border-2 text-sm font-medium transition-all #{if @fee_type == "fixed", do: "border-slate-800 bg-slate-50 text-slate-800", else: "border-gray-200 text-gray-600 hover:border-gray-300"}"}
+          >
+            PKR Fixed
+          </button>
+        </div>
+      </div>
+      
+<!-- Fee value -->
+      <div class="mb-5">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+          Fee Amount ({if @fee_type == "percentage", do: "%", else: "PKR"})
+        </label>
+        <input
+          type="number"
+          value={@fee_value}
+          min="0"
+          phx-keyup="update_value"
+          class="w-full px-4 py-3 border border-gray-200 rounded-xl text-base outline-none focus:border-slate-400 transition-all"
+          placeholder={if @fee_type == "percentage", do: "e.g. 10", else: "e.g. 50"}
+        />
+        <p class="text-xs text-gray-400 mt-1">
+          Current: {if @fee_type == "percentage",
+            do: "#{@setting.platform_fee_value}%",
+            else: "PKR #{@setting.platform_fee_value}"} per booking
+        </p>
+      </div>
+
+      <button
+        phx-click="save"
+        disabled={@saving}
+        class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold transition-all disabled:opacity-60"
+      >
+        {if @saving, do: "Saving...", else: "💾 Save Settings"}
+      </button>
+    </div>
+
+    <div class="mt-4 text-center">
+      <.link navigate={~p"/admin"} class="text-sm text-gray-400 hover:text-gray-600">
+        ← Back to admin dashboard
+      </.link>
+    </div>
+  </div>
+</Layouts.app>

@@ -1,0 +1,156 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  
+<!-- Call modal -->
+  <%= if @show_call_modal do %>
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;display:flex;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:20px;padding:2.5rem;max-width:380px;width:90%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.2)">
+        <div style="font-size:3.5rem;margin-bottom:1rem">📞</div>
+        <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:#1A2744">
+          Call Request
+        </h3>
+        <p style="color:#5B7096;font-size:0.88rem;margin-bottom:1.8rem;line-height:1.6">
+          This will send a call notification message in the chat.
+          The other party can then call you back on your registered number.
+        </p>
+        <div style="display:flex;gap:0.8rem;justify-content:center">
+          <button
+            phx-click="request_call"
+            style="padding:0.75rem 1.6rem;background:#1A2744;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:0.9rem"
+          >
+            📲 Send Call Request
+          </button>
+          <button
+            phx-click="hide_call"
+            style="padding:0.75rem 1.4rem;background:transparent;border:1.5px solid #E8E5DF;border-radius:10px;font-weight:600;cursor:pointer;color:#5B7096;font-size:0.9rem"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Chat header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;padding:1.2rem 1.4rem;background:#fff;border:1px solid #E8E5DF;border-radius:16px;gap:1rem;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:0.9rem">
+      <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#1A2744,#2A3F6B);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">
+        💬
+      </div>
+      <div>
+        <h2 style="font-weight:700;color:#1A2744;font-size:1rem;margin-bottom:0.15rem">
+          Chat — Booking #{@booking.id}
+        </h2>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <span style={"padding:0.2rem 0.6rem;border-radius:100px;font-size:0.72rem;font-weight:600;#{status_pill(@booking.status)}"}>
+            {@booking.status}
+          </span>
+          <span style="font-size:0.78rem;color:#8FA3C0">
+            {if @current_scope == "user",
+              do: @booking.skilled_profile.user.name,
+              else: @booking.user.name}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+      <button
+        phx-click="show_call"
+        style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 1rem;background:#F0FDF4;border:1px solid #BBF7D0;color:#065F46;border-radius:10px;font-size:0.82rem;font-weight:600;cursor:pointer"
+      >
+        📞 Call
+      </button>
+      <%= if @booking.status == "confirmed" and @current_scope == "user" do %>
+        <.link
+          navigate={~p"/user/pay/#{@booking.id}"}
+          style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 1rem;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;font-size:0.82rem;font-weight:600;text-decoration:none"
+        >
+          💳 Pay Now
+        </.link>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Messages area -->
+  <div style="background:#fff;border:1px solid #E8E5DF;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;height:520px">
+    
+<!-- Messages scroll area -->
+    <div
+      id="messages-box"
+      style="flex:1;overflow-y:auto;padding:1.2rem;display:flex;flex-direction:column;gap:0.8rem"
+    >
+      <%= if @messages == [] do %>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8FA3C0;padding:3rem 0;gap:0.5rem">
+          <span style="font-size:3rem">💬</span>
+          <span style="font-size:0.9rem">No messages yet — say hello!</span>
+        </div>
+      <% end %>
+      <%= for msg <- @messages do %>
+        <div style={"display:flex;justify-content:#{if me?(msg, @current_user), do: "flex-end", else: "flex-start"};align-items:flex-end;gap:0.5rem"}>
+          <%= unless me?(msg, @current_user) do %>
+            <div style="width:28px;height:28px;border-radius:50%;background:#E8E5DF;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:#5B7096;flex-shrink:0">
+              {String.first(msg.sender.name)}
+            </div>
+          <% end %>
+          <div style="max-width:70%">
+            <%= unless me?(msg, @current_user) do %>
+              <p style="font-size:0.7rem;color:#8FA3C0;margin-bottom:0.25rem;padding-left:0.2rem">
+                {msg.sender.name}
+              </p>
+            <% end %>
+            <div style={"padding:0.65rem 1rem;border-radius:#{if me?(msg, @current_user), do: "16px 16px 4px 16px", else: "16px 16px 16px 4px"};font-size:0.88rem;line-height:1.5;#{cond do
+                  msg.kind == "call_request" -> "background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0"
+                  me?(msg, @current_user) -> "background:#1A2744;color:#fff"
+                  true -> "background:#F8F8F6;color:#1A2744;border:1px solid #E8E5DF"
+                end}"}>
+              {msg.body}
+            </div>
+            <p style={"font-size:0.68rem;color:#C0BDB5;margin-top:0.2rem;#{if me?(msg, @current_user), do: "text-align:right", else: ""}"}>
+              {fmt_time(msg.inserted_at)}
+            </p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    
+<!-- Input row -->
+    <div style="border-top:1px solid #E8E5DF;padding:0.9rem 1rem;background:#FAFAF8;display:flex;gap:0.6rem">
+      <input
+        type="text"
+        value={@message}
+        placeholder="Type a message…"
+        phx-keyup="update_message"
+        phx-key="Enter"
+        phx-value-value={@message}
+        style="flex:1;padding:0.7rem 1rem;border:1.5px solid #E8E5DF;border-radius:10px;font-size:0.9rem;outline:none;background:#fff;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#2E9B8B'"
+        onblur="this.style.borderColor='#E8E5DF'"
+      />
+      <button
+        phx-click="send_message"
+        style="padding:0.7rem 1.2rem;background:#1A2744;color:#fff;border:none;border-radius:10px;font-size:0.88rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.15s"
+        onmouseover="this.style.background='#2A3F6B'"
+        onmouseout="this.style.background='#1A2744'"
+      >
+        Send ↗
+      </button>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:1rem">
+    <%= if @current_scope == "user" do %>
+      <.link
+        navigate={~p"/user/bookings"}
+        style="font-size:0.82rem;color:#8FA3C0;text-decoration:none"
+      >
+        ← Back to bookings
+      </.link>
+    <% else %>
+      <.link
+        navigate={~p"/skilled/bookings"}
+        style="font-size:0.82rem;color:#8FA3C0;text-decoration:none"
+      >
+        ← Back to bookings
+      </.link>
+    <% end %>
+  </div>
+</Layouts.app>

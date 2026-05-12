@@ -1,0 +1,171 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <%!-- Header --%>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg">
+        <.icon name="hero-banknotes" class="w-6 h-6 text-white" />
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-base-content">Payments</h1>
+        <p class="text-sm text-base-content/50">{length(@payments)} transaction(s)</p>
+      </div>
+    </div>
+  </div>
+
+  <%!-- Pending cash/bank/wallet alert --%>
+  <% pending_manual = Enum.filter(@payments, fn p -> p.status == "pending" and p.payment_method in ["cash", "bank", "wallet"] end) %>
+  <%= if pending_manual != [] do %>
+    <div class="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 text-sm text-amber-800">
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-amber-500 shrink-0" />
+      <span>
+        <strong>{length(pending_manual)}</strong> pending manual payment(s) need your confirmation.
+        Filter by <strong>Pending</strong> to review them.
+      </span>
+    </div>
+  <% end %>
+
+  <%!-- Summary cards --%>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Platform Revenue</p>
+      <p class="text-xl font-bold text-emerald-600">PKR {Float.round(@revenue / 100, 0)}</p>
+    </div>
+    <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Total Volume</p>
+      <p class="text-xl font-bold text-base-content">PKR {Float.round(@volume / 100, 0)}</p>
+    </div>
+    <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Completed</p>
+      <p class="text-xl font-bold text-base-content">
+        {Enum.count(@payments, &(&1.status == "completed"))}
+      </p>
+    </div>
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+      <p class="text-xs text-amber-600 uppercase tracking-wider font-medium mb-1">Pending</p>
+      <p class="text-xl font-bold text-amber-700">
+        {Enum.count(@payments, &(&1.status == "pending"))}
+      </p>
+    </div>
+  </div>
+
+  <%!-- Filter tabs --%>
+  <div class="flex flex-wrap gap-2 mb-4">
+    <%= for {label, val} <- [{"All", "all"}, {"Completed", "completed"}, {"Pending", "pending"}, {"Refunded", "refunded"}] do %>
+      <button
+        phx-click="filter"
+        phx-value-status={val}
+        class={[
+          "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150",
+          if(@filter_status == val,
+            do: "bg-primary text-primary-content border-primary shadow-sm",
+            else: "bg-base-200 text-base-content/70 border-base-300 hover:border-primary hover:text-primary"
+          )
+        ]}
+      >
+        {label}
+      </button>
+    <% end %>
+  </div>
+
+  <%!-- Payments table --%>
+  <%= if @visible == [] do %>
+    <div class="flex flex-col items-center justify-center py-20 rounded-2xl border border-base-300 bg-base-100 text-center">
+      <.icon name="hero-banknotes" class="w-12 h-12 text-base-content/20 mb-3" />
+      <p class="text-base-content/50 font-medium">No payments found for this filter</p>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-base-300 bg-base-100 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="table table-sm w-full text-sm">
+          <thead class="bg-base-200 text-xs uppercase tracking-wide text-base-content/50">
+            <tr>
+              <th class="py-3 px-4">Date</th>
+              <th class="py-3 px-4">Payer</th>
+              <th class="py-3 px-4">Service</th>
+              <th class="py-3 px-4">Method</th>
+              <th class="py-3 px-4 text-right">Amount</th>
+              <th class="py-3 px-4 text-right">Fee</th>
+              <th class="py-3 px-4 text-center">Status</th>
+              <th class="py-3 px-4 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for p <- @visible do %>
+              <% {method_label, method_class} = method_pill(p.payment_method) %>
+              <tr class={[
+                "border-t border-base-200 transition-colors",
+                if(p.status == "pending" and p.payment_method in ["cash", "bank", "wallet"],
+                  do: "bg-amber-50/30",
+                  else: "hover:bg-base-50"
+                )
+              ]}>
+                <td class="py-3 px-4 text-xs text-base-content/50 whitespace-nowrap">
+                  {fmt_dt(p.inserted_at)}
+                </td>
+
+                <td class="py-3 px-4">
+                  <p class="font-semibold text-base-content">{p.payer.name}</p>
+                  <p class="text-xs text-base-content/40">{p.payer.email}</p>
+                </td>
+
+                <td class="py-3 px-4">
+                  <%= if p.booking && p.booking.skilled_profile do %>
+                    <p class="text-base-content/80">{p.booking.skilled_profile.skill_category.name}</p>
+                    <p class="text-xs text-base-content/40">{p.booking.skilled_profile.user.name}</p>
+                  <% else %>
+                    <span class="text-base-content/30">—</span>
+                  <% end %>
+                </td>
+
+                <td class="py-3 px-4">
+                  <span class={"px-2 py-0.5 rounded-full text-xs font-semibold #{method_class}"}>
+                    {method_label}
+                  </span>
+                </td>
+
+                <td class="py-3 px-4 text-right font-semibold text-base-content">
+                  {fmt_cents(p.amount_cents)}
+                </td>
+
+                <td class="py-3 px-4 text-right text-emerald-600">
+                  {fmt_cents(p.platform_fee_cents)}
+                </td>
+
+                <td class="py-3 px-4 text-center">
+                  <span class={"px-2 py-0.5 rounded-full text-xs font-semibold #{status_pill(p.status)}"}>
+                    {p.status}
+                  </span>
+                </td>
+
+                <td class="py-3 px-4 text-center">
+                  <%= cond do %>
+                    <% p.status == "pending" and p.payment_method in ["cash", "bank", "wallet"] -> %>
+                      <button
+                        phx-click="confirm_payment"
+                        phx-value-id={p.id}
+                        data-confirm={"Confirm #{fmt_cents(p.amount_cents)} #{String.upcase(p.payment_method)} payment from #{p.payer.name}?"}
+                        class="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-semibold transition-all"
+                      >
+                        ✓ Confirm
+                      </button>
+                    <% p.status == "completed" -> %>
+                      <button
+                        phx-click="refund"
+                        phx-value-id={p.id}
+                        data-confirm={"Refund #{fmt_cents(p.amount_cents)} to #{p.payer.name}? This cannot be undone."}
+                        class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-medium transition-all"
+                      >
+                        ↩ Refund
+                      </button>
+                    <% true -> %>
+                      <span class="text-xs text-base-content/30">—</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+</Layouts.app>

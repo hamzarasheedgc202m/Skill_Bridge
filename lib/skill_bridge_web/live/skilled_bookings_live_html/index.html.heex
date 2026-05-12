@@ -1,0 +1,93 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Incoming Bookings</h1>
+    <p class="text-sm text-gray-500">{length(@bookings)} booking(s)</p>
+  </div>
+
+  <%= if !@profile do %>
+    <div class="text-center py-12 bg-white rounded-2xl border border-gray-100">
+      <p class="text-gray-500 mb-4">Create your profile to receive bookings.</p>
+      <.link
+        navigate={~p"/skilled/profile"}
+        class="px-5 py-2.5 bg-slate-800 text-white rounded-xl text-sm font-semibold"
+      >
+        Create Profile
+      </.link>
+    </div>
+  <% else %>
+    <%= if @bookings == [] do %>
+      <div class="text-center py-16 bg-white rounded-2xl border border-gray-100">
+        <div class="text-4xl mb-3">📭</div>
+        <h3 class="font-semibold text-gray-700">No bookings yet</h3>
+        <p class="text-sm text-gray-400 mt-1">
+          Make sure your availability is set and profile is complete
+        </p>
+      </div>
+    <% else %>
+      <div class="space-y-4">
+        <%= for b <- @bookings do %>
+          <div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {String.first(b.user.name)}
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-900">{b.user.name}</p>
+                  <p class="text-xs text-gray-400">{fmt(b.scheduled_at)}</p>
+                  <p class="text-xs text-gray-400 mt-0.5">📍 {b.address}</p>
+                </div>
+              </div>
+              <span class={"px-2.5 py-1 rounded-full text-xs font-semibold #{status_pill(b.status)}"}>
+                {b.status}
+              </span>
+            </div>
+
+            <div class="flex gap-2 mt-4 flex-wrap">
+              <.link
+                navigate={~p"/skilled/chat/#{b.id}"}
+                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-all flex items-center gap-1 relative"
+              >
+                💬 Chat
+                <%= if Map.get(@unread_counts, b.id, 0) > 0 do %>
+                  <span class="ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                    {Map.get(@unread_counts, b.id)}
+                  </span>
+                <% end %>
+              </.link>
+              <%= if b.status == "confirmed" do %>
+                <button
+                  phx-click="complete"
+                  phx-value-id={b.id}
+                  data-confirm="Mark this booking as completed?"
+                  class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-all border border-blue-100"
+                >
+                  ✓ Mark Completed
+                </button>
+              <% end %>
+              <%= if b.status == "pending" do %>
+                <button
+                  phx-click="confirm"
+                  phx-value-id={b.id}
+                  class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-medium transition-all border border-emerald-100"
+                >
+                  ✓ Confirm
+                </button>
+              <% end %>
+              <%= if b.status in ["pending", "confirmed"] do %>
+                <button
+                  phx-click="cancel"
+                  phx-value-id={b.id}
+                  data-confirm="Reject/cancel this booking?"
+                  class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-medium transition-all border border-red-100"
+                >
+                  ✕ {if b.status == "pending", do: "Reject", else: "Cancel"}
+                </button>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</Layouts.app>

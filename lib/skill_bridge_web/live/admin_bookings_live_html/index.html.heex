@@ -1,0 +1,288 @@
+<Layouts.app_admin
+  flash={@flash}
+  current_scope={@current_scope}
+  current_user={@current_user}
+  page_title="Bookings Management"
+>
+  <%!-- Header --%>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg">
+        <.icon name="hero-calendar-days" class="w-6 h-6 text-white" />
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-base-content">Bookings Management</h1>
+        <p class="text-sm text-base-content/50">{length(@bookings)} booking(s) shown</p>
+      </div>
+    </div>
+    <%!-- Status filter tabs --%>
+    <div class="flex flex-wrap gap-2">
+      <%= for {label, val} <- [{"All", "all"}, {"Pending", "pending"}, {"Confirmed", "confirmed"}, {"Completed", "completed"}, {"Cancelled", "cancelled"}] do %>
+        <button
+          phx-click="filter"
+          phx-value-status={val}
+          class={[
+            "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150",
+            if(@filter == val,
+              do: "bg-primary text-primary-content border-primary shadow-sm",
+              else:
+                "bg-base-200 text-base-content/70 border-base-300 hover:border-primary hover:text-primary"
+            )
+          ]}
+        >
+          {label}
+        </button>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- Booking Detail Modal --%>
+  <%= if @selected_booking do %>
+    <% b = @selected_booking %>
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" phx-click="close_detail"></div>
+      <div class="relative z-10 w-full max-w-2xl bg-base-100 rounded-2xl shadow-2xl border border-base-300 overflow-hidden">
+        <%!-- Modal header --%>
+        <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-blue-600/10 to-indigo-500/10 border-b border-base-300">
+          <div>
+            <h2 class="font-bold text-lg text-base-content">Booking #{b.id}</h2>
+            <span class={[
+              "text-xs font-semibold px-2 py-0.5 rounded-full",
+              status_class(b.status)
+            ]}>
+              {String.upcase(b.status)}
+            </span>
+          </div>
+          <button phx-click="close_detail" class="btn btn-sm btn-ghost btn-circle">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <%!-- Parties --%>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <%!-- Client --%>
+            <div class="rounded-xl border border-base-300 bg-base-50 p-4">
+              <p class="text-xs font-bold uppercase tracking-widest text-base-content/40 mb-2">
+                Client (User)
+              </p>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <.icon name="hero-user" class="w-5 h-5 text-blue-500" />
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-base-content">{b.user.name}</p>
+                  <p class="text-xs text-base-content/50">{b.user.email}</p>
+                  <p class="text-xs text-primary font-mono mt-0.5">ID: {b.user.id}</p>
+                </div>
+              </div>
+              <div class="mt-3 space-y-1 text-xs text-base-content/60">
+                <%= if b.user.phone do %>
+                  <p>📞 {b.user.phone}</p>
+                <% end %>
+                <%= if b.user.city do %>
+                  <p>📍 {b.user.city}</p>
+                <% end %>
+              </div>
+            </div>
+
+            <%!-- Provider --%>
+            <div class="rounded-xl border border-base-300 bg-base-50 p-4">
+              <p class="text-xs font-bold uppercase tracking-widest text-base-content/40 mb-2">
+                Provider (Skilled)
+              </p>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <.icon name="hero-briefcase" class="w-5 h-5 text-emerald-500" />
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-base-content">
+                    {b.skilled_profile.user.name}
+                  </p>
+                  <p class="text-xs text-base-content/50">
+                    {b.skilled_profile.skill_category.name}
+                  </p>
+                  <p class="text-xs text-primary font-mono mt-0.5">
+                    Profile ID: {b.skilled_profile.id}
+                  </p>
+                </div>
+              </div>
+              <div class="mt-3 space-y-1 text-xs text-base-content/60">
+                <%= if b.skilled_profile.region do %>
+                  <p>📍 {b.skilled_profile.region}</p>
+                <% end %>
+                <%= if b.skilled_profile.hourly_rate_cents do %>
+                  <p>💰 PKR {b.skilled_profile.hourly_rate_cents}/hr</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <%!-- Booking details --%>
+          <div class="rounded-xl border border-base-300 p-4">
+            <p class="text-xs font-bold uppercase tracking-widest text-base-content/40 mb-3">
+              Booking Details
+            </p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              <div>
+                <p class="text-xs text-base-content/40 mb-0.5">Scheduled At</p>
+                <p class="font-medium text-base-content">{fmt_dt(b.scheduled_at)}</p>
+              </div>
+              <div>
+                <p class="text-xs text-base-content/40 mb-0.5">Created</p>
+                <p class="font-medium text-base-content">{fmt_dt(b.inserted_at)}</p>
+              </div>
+              <div>
+                <p class="text-xs text-base-content/40 mb-0.5">Status</p>
+                <span class={[
+                  "text-xs font-semibold px-2 py-0.5 rounded-full",
+                  status_class(b.status)
+                ]}>
+                  {b.status}
+                </span>
+              </div>
+              <%= if b.notes && b.notes != "" do %>
+                <div class="col-span-full">
+                  <p class="text-xs text-base-content/40 mb-0.5">Notes</p>
+                  <p class="text-sm text-base-content/80">{b.notes}</p>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <%!-- Actions --%>
+          <div class="flex flex-wrap gap-3">
+            <.link
+              navigate="/admin"
+              class="btn btn-sm btn-ghost gap-1"
+            >
+              <.icon name="hero-arrow-left" class="w-4 h-4" /> Back
+            </.link>
+            <.link
+              navigate={"/admin/chat/#{b.id}"}
+              class="btn btn-sm btn-outline gap-1"
+            >
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> View Chat
+            </.link>
+            <%= if b.status not in ["cancelled", "completed"] do %>
+              <button
+                phx-click="admin_cancel"
+                phx-value-id={b.id}
+                class="btn btn-sm btn-error gap-1"
+                data-confirm="Cancel this booking? This cannot be undone."
+              >
+                <.icon name="hero-x-circle" class="w-4 h-4" /> Cancel Booking
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%!-- Stats summary row --%>
+  <% all_b = @bookings %>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <%= for {label, status, color} <- [{"Pending", "pending", "amber"}, {"Confirmed", "confirmed", "emerald"}, {"Completed", "completed", "blue"}, {"Cancelled", "cancelled", "red"}] do %>
+      <% count = Enum.count(all_b, &(&1.status == status)) %>
+      <div class={"rounded-xl border p-3 bg-#{color}-50 border-#{color}-200 dark:bg-#{color}-900/10 dark:border-#{color}-800/30"}>
+        <p class={"text-xs font-semibold uppercase tracking-wide text-#{color}-600 mb-1"}>
+          {label}
+        </p>
+        <p class={"text-2xl font-bold text-#{color}-700"}>{count}</p>
+      </div>
+    <% end %>
+  </div>
+
+  <%!-- Bookings table --%>
+  <%= if @bookings == [] do %>
+    <div class="flex flex-col items-center justify-center py-20 text-center">
+      <.icon name="hero-calendar-x-mark" class="w-16 h-16 text-base-content/20 mb-4" />
+      <p class="text-base-content/50 font-medium">No bookings found for this filter</p>
+    </div>
+  <% else %>
+    <div class="overflow-x-auto rounded-2xl border border-base-300 bg-base-100 shadow-sm">
+      <table class="table table-sm w-full text-sm">
+        <thead class="bg-base-200 text-xs uppercase tracking-wide text-base-content/50">
+          <tr>
+            <th class="py-3 px-4">ID</th>
+            <th class="py-3 px-4">Client</th>
+            <th class="py-3 px-4">Provider</th>
+            <th class="py-3 px-4">Skill</th>
+            <th class="py-3 px-4">Scheduled</th>
+            <th class="py-3 px-4">Status</th>
+            <th class="py-3 px-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for booking <- @bookings do %>
+            <tr class="border-t border-base-200 hover:bg-base-50 transition-colors">
+              <td class="py-3 px-4 font-mono text-xs text-base-content/60">#{booking.id}</td>
+
+              <%!-- Client --%>
+              <td class="py-3 px-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                    {String.first(booking.user.name)}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="font-medium text-base-content truncate max-w-[100px]">
+                      {booking.user.name}
+                    </p>
+                    <p class="text-xs text-primary font-mono">UID:{booking.user.id}</p>
+                  </div>
+                </div>
+              </td>
+
+              <%!-- Provider --%>
+              <td class="py-3 px-4">
+                <div class="min-w-0">
+                  <p class="font-medium text-base-content truncate max-w-[100px]">
+                    {booking.skilled_profile.user.name}
+                  </p>
+                  <p class="text-xs text-base-content/50 font-mono">
+                    PID:{booking.skilled_profile.id}
+                  </p>
+                </div>
+              </td>
+
+              <%!-- Skill --%>
+              <td class="py-3 px-4 text-base-content/70">
+                {booking.skilled_profile.skill_category.name}
+              </td>
+
+              <%!-- Scheduled --%>
+              <td class="py-3 px-4 text-xs text-base-content/60 whitespace-nowrap">
+                {fmt_dt(booking.scheduled_at)}
+              </td>
+
+              <%!-- Status --%>
+              <td class="py-3 px-4">
+                <span class={[
+                  "text-xs font-semibold px-2 py-0.5 rounded-full",
+                  status_class(booking.status)
+                ]}>
+                  {booking.status}
+                </span>
+              </td>
+
+              <%!-- Actions --%>
+              <td class="py-3 px-4">
+                <div class="flex items-center gap-1">
+                  <button
+                    phx-click="view_booking"
+                    phx-value-id={booking.id}
+                    class="btn btn-xs btn-ghost gap-1 hover:bg-primary/10 hover:text-primary"
+                    title="View full booking details"
+                  >
+                    <.icon name="hero-eye" class="w-3.5 h-3.5" /> Details
+                  </button>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</Layouts.app_admin>

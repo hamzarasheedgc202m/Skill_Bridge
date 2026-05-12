@@ -1,0 +1,299 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  
+<!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+    <div>
+      <h1 style="font-size:1.6rem;font-weight:700;color:#1A2744;margin-bottom:0.2rem">
+        👥 Manage Professionals
+      </h1>
+      <p style="font-size:0.85rem;color:#8FA3C0">
+        Pending: <strong style="color:#D97706">{length(@pending)}</strong> ·
+        Approved: <strong style="color:#065F46">{length(@approved)}</strong> ·
+        Total: <strong>{length(@all)}</strong>
+      </p>
+    </div>
+    <!-- Tab pills -->
+    <div style="display:flex;gap:0.4rem;background:#F8F8F6;border-radius:12px;padding:0.3rem">
+      <%= for {id, label} <- [{"pending","⏳ Pending"}, {"approved","✅ Approved"}, {"all","📋 All"}] do %>
+        <button
+          phx-click="switch_tab"
+          phx-value-tab={id}
+          style={"padding:0.45rem 1rem;border-radius:8px;border:none;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.15s;#{if @active_tab == id, do: "background:#1A2744;color:#fff", else: "background:transparent;color:#8FA3C0"}"}
+        >
+          {label}
+        </button>
+      <% end %>
+    </div>
+  </div>
+
+  <div style={"display:grid;gap:1.2rem;#{if @selected_profile, do: "grid-template-columns:1fr 360px", else: ""}"}>
+    
+<!-- ── Profile list ── -->
+    <div>
+      <% profiles =
+        case @active_tab do
+          "pending" -> @pending
+          "approved" -> @approved
+          _ -> @all
+        end %>
+
+      <%= if profiles == [] do %>
+        <div style="text-align:center;padding:4rem 2rem;background:#fff;border-radius:16px;border:1.5px solid #E8E5DF;color:#8FA3C0">
+          <div style="font-size:3rem;margin-bottom:0.8rem">📭</div>
+          <p style="font-weight:600">No profiles in this category</p>
+        </div>
+      <% else %>
+        <div style="display:flex;flex-direction:column;gap:0.8rem">
+          <%= for profile <- profiles do %>
+            <% {status_lbl, status_color, status_bg} = status_badge(profile.status) %>
+            <% earnings = SkillBridge.Skills.profile_earnings(profile.id) %>
+            <div
+              phx-click="view_detail"
+              phx-value-id={profile.id}
+              style={"background:#fff;border:1.5px solid #{if @selected_profile && @selected_profile.id == profile.id, do: "#1A2744", else: "#E8E5DF"};border-radius:14px;padding:1.1rem 1.3rem;cursor:pointer;transition:all 0.18s;display:flex;align-items:center;gap:1rem"}
+              onmouseover="this.style.borderColor='#1A2744';this.style.boxShadow='0 4px 16px rgba(26,39,68,0.08)'"
+              onmouseout={"this.style.borderColor='#{if @selected_profile && @selected_profile.id == profile.id, do: "#1A2744", else: "#E8E5DF"}';this.style.boxShadow='none'"}
+            >
+              <!-- Avatar -->
+              <div style="flex-shrink:0">
+                <%= if profile.profile_image_url && profile.profile_image_url != "" do %>
+                  <img
+                    src={profile.profile_image_url}
+                    style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #E8E5DF"
+                    onerror="this.style.display='none';this.nextSibling.style.display='flex'"
+                  />
+                  <div style="display:none;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2A3F6B);align-items:center;justify-content:center;color:#fff;font-weight:700">
+                    {String.first(profile.user.name)}
+                  </div>
+                <% else %>
+                  <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2A3F6B);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700">
+                    {String.first(profile.user.name)}
+                  </div>
+                <% end %>
+              </div>
+
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                  <span style="font-weight:700;color:#1A2744">{profile.user.name}</span>
+                  <span style={"padding:0.18rem 0.55rem;border-radius:100px;font-size:0.68rem;font-weight:700;background:#{status_bg};color:#{status_color}"}>
+                    {status_lbl}
+                  </span>
+                </div>
+                <p style="font-size:0.8rem;color:#8FA3C0;margin-top:0.15rem">
+                  {profile.skill_category.name} · {if profile.city && profile.city != "",
+                    do: profile.city,
+                    else: profile.region}
+                </p>
+              </div>
+              
+<!-- Earnings -->
+              <div style="text-align:right;flex-shrink:0">
+                <p style="font-size:0.75rem;color:#8FA3C0">Earned</p>
+                <p style="font-weight:700;color:#065F46;font-size:0.9rem">PKR {earnings}</p>
+                <p style="font-size:0.68rem;color:#C0BDB5">{fmt_dt(profile.inserted_at)}</p>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+<!-- ── Detail panel ── -->
+    <%= if @selected_profile do %>
+      <% p = @selected_profile %>
+      <% {sl, sc, sb} = status_badge(p.status) %>
+      <% earnings = SkillBridge.Skills.profile_earnings(p.id) %>
+
+      <div style="background:#fff;border:1.5px solid #E8E5DF;border-radius:16px;overflow:hidden;position:sticky;top:80px;max-height:85vh;overflow-y:auto">
+        
+<!-- Header -->
+        <div style="padding:1.2rem 1.3rem;border-bottom:1px solid #E8E5DF;display:flex;align-items:center;gap:0.8rem">
+          <%= if p.profile_image_url && p.profile_image_url != "" do %>
+            <img
+              src={p.profile_image_url}
+              style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #E8E5DF;flex-shrink:0"
+              onerror="this.style.display='none';this.nextSibling.style.display='flex'"
+            />
+            <div style="display:none;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2A3F6B);align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">
+              {String.first(p.user.name)}
+            </div>
+          <% else %>
+            <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1A2744,#2A3F6B);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">
+              {String.first(p.user.name)}
+            </div>
+          <% end %>
+          <div style="flex:1">
+            <p style="font-weight:700;color:#1A2744">{p.user.name}</p>
+            <p style="font-size:0.75rem;color:#8FA3C0">{p.user.email}</p>
+          </div>
+          <button
+            phx-click="close_detail"
+            style="background:none;border:none;cursor:pointer;color:#8FA3C0;font-size:1.2rem;padding:0.2rem"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style="padding:1.2rem">
+          
+<!-- Info grid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1.2rem">
+            <div style={"padding:0.7rem;border-radius:10px;background:#{sb};border:1px solid #{sc}22"}>
+              <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                Status
+              </p>
+              <p style={"font-weight:700;font-size:0.82rem;color:#{sc}"}>{sl}</p>
+            </div>
+            <div style="padding:0.7rem;border-radius:10px;background:#F0FDF4;border:1px solid #BBF7D0">
+              <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                Earnings
+              </p>
+              <p style="font-weight:700;font-size:0.82rem;color:#065F46">PKR {earnings}</p>
+            </div>
+            <div style="padding:0.7rem;border-radius:10px;background:#F8F8F6;border:1px solid #E8E5DF">
+              <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                Skill
+              </p>
+              <p style="font-weight:600;font-size:0.82rem;color:#1A2744">
+                {p.skill_category.name}
+              </p>
+            </div>
+            <div style="padding:0.7rem;border-radius:10px;background:#F8F8F6;border:1px solid #E8E5DF">
+              <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                Location
+              </p>
+              <p style="font-weight:600;font-size:0.82rem;color:#1A2744">
+                {if p.city && p.city != "", do: p.city, else: p.region}
+              </p>
+            </div>
+            <%= if p.hourly_rate_cents do %>
+              <div style="padding:0.7rem;border-radius:10px;background:#FFFBEB;border:1px solid #FDE68A">
+                <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                  Rate
+                </p>
+                <p style="font-weight:600;font-size:0.82rem;color:#D97706">
+                  PKR {p.hourly_rate_cents}/hr
+                </p>
+              </div>
+            <% end %>
+            <div style="padding:0.7rem;border-radius:10px;background:#F8F8F6;border:1px solid #E8E5DF">
+              <p style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.2rem">
+                Joined
+              </p>
+              <p style="font-weight:600;font-size:0.82rem;color:#1A2744">
+                {fmt_dt(p.inserted_at)}
+              </p>
+            </div>
+          </div>
+          
+<!-- Actions -->
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.2rem">
+            <%= if p.status == "pending" do %>
+              <button
+                phx-click="approve"
+                phx-value-id={p.id}
+                style="padding:0.5rem 0.9rem;background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.15s"
+                onmouseover="this.style.background='#BBF7D0'"
+                onmouseout="this.style.background='#F0FDF4'"
+              >
+                ✅ Approve
+              </button>
+              <button
+                phx-click="reject"
+                phx-value-id={p.id}
+                style="padding:0.5rem 0.9rem;background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer"
+                data-confirm="Reject this profile?"
+              >
+                ❌ Reject
+              </button>
+            <% end %>
+            <%= if p.status == "approved" do %>
+              <button
+                phx-click="freeze_profile"
+                phx-value-id={p.id}
+                style="padding:0.5rem 0.9rem;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer"
+                data-confirm={"Freeze #{p.user.name}'s profile?"}
+              >
+                🚫 Freeze
+              </button>
+            <% end %>
+            <%= if p.status == "frozen" do %>
+              <button
+                phx-click="unfreeze_profile"
+                phx-value-id={p.id}
+                style="padding:0.5rem 0.9rem;background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer"
+              >
+                ▶ Unfreeze
+              </button>
+            <% end %>
+            <button
+              phx-click="delete"
+              phx-value-id={p.id}
+              style="padding:0.5rem 0.9rem;background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer"
+              data-confirm={"Permanently remove #{p.user.name}? Cannot be undone."}
+            >
+              🗑 Remove
+            </button>
+          </div>
+          
+<!-- Complaints -->
+          <div style="margin-bottom:1.2rem">
+            <p style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.6rem">
+              Complaints ({length(@complaints)})
+            </p>
+            <%= if @complaints == [] do %>
+              <p style="font-size:0.8rem;color:#8FA3C0;font-style:italic">No complaints</p>
+            <% else %>
+              <div style="display:flex;flex-direction:column;gap:0.5rem">
+                <%= for c <- @complaints do %>
+                  <div style={"padding:0.7rem;border-radius:10px;font-size:0.8rem;#{if c.status == "open", do: "background:#FEF2F2;border:1px solid #FECACA", else: "background:#F8F8F6;border:1px solid #E8E5DF"}"}>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem">
+                      <span style="font-weight:600;color:#1A2744">{c.user.name}</span>
+                      <span style={"font-size:0.68rem;font-weight:700;#{if c.status == "open", do: "color:#991B1B", else: "color:#065F46"}"}>
+                        {String.upcase(c.status)}
+                      </span>
+                    </div>
+                    <p style="color:#5B7096;line-height:1.5">{c.body}</p>
+                    <%= if c.status == "open" do %>
+                      <button
+                        phx-click="resolve_complaint"
+                        phx-value-id={c.id}
+                        style="margin-top:0.4rem;padding:0.3rem 0.7rem;background:#F0FDF4;color:#065F46;border:1px solid #BBF7D0;border-radius:6px;font-size:0.72rem;font-weight:600;cursor:pointer"
+                      >
+                        ✓ Mark Resolved
+                      </button>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+          
+<!-- Reviews -->
+          <div>
+            <p style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8FA3C0;margin-bottom:0.6rem">
+              Reviews ({length(@reviews)})
+            </p>
+            <%= if @reviews == [] do %>
+              <p style="font-size:0.8rem;color:#8FA3C0;font-style:italic">No reviews</p>
+            <% else %>
+              <div style="display:flex;flex-direction:column;gap:0.5rem">
+                <%= for r <- @reviews do %>
+                  <div style="padding:0.7rem;border-radius:10px;background:#FFFBEB;border:1px solid #FDE68A;font-size:0.8rem">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem">
+                      <span style="font-weight:600;color:#1A2744">{r.user.name}</span>
+                      <span style="color:#D97706;font-weight:700">{star(r.rating)}</span>
+                    </div>
+                    <%= if r.body do %>
+                      <p style="color:#92400E;line-height:1.5">{r.body}</p>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</Layouts.app>

@@ -1,0 +1,217 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="mx-auto max-w-3xl space-y-6">
+    <div>
+      <h1 class="font-serif text-2xl font-bold text-slate-900">My profile</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Complete your profile so service providers can find and serve you.
+      </p>
+    </div>
+
+    <.form
+      for={@form}
+      id="user-profile-form"
+      phx-submit="save"
+      phx-change="validate"
+      class="space-y-6"
+    >
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="mb-4 text-xs font-bold uppercase tracking-wide text-slate-600">
+          Profile Photo
+        </h2>
+        <div id="photo-upload-zone" phx-hook=".PhotoPreview" class="flex flex-wrap items-start gap-5">
+          <%!-- Preview --%>
+          <div class="shrink-0">
+            <img
+              id="user-photo-preview"
+              src={if @image_preview != "", do: @image_preview, else: "/images/avatar_placeholder.png"}
+              alt="Your photo"
+              class="w-24 h-24 rounded-full object-cover border-2 border-slate-200 shadow"
+              onerror="this.src=''"
+            />
+          </div>
+
+          <%!-- Upload area --%>
+          <div class="flex-1 min-w-[180px]">
+            <label
+              for={@uploads.profile_photo.ref}
+              class="flex flex-col items-center justify-center w-full h-28 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-teal-400 cursor-pointer transition-all duration-200"
+            >
+              <.icon name="hero-camera" class="w-7 h-7 text-slate-400 mb-1" />
+              <span class="text-xs font-semibold text-slate-500">Click to upload photo</span>
+              <span class="text-xs text-slate-400 mt-0.5">JPG, PNG, WEBP — max 5MB</span>
+              <.live_file_input
+                upload={@uploads.profile_photo}
+                class="sr-only"
+              />
+            </label>
+
+            <%= for entry <- @uploads.profile_photo.entries do %>
+              <div class="mt-2 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 rounded-lg px-3 py-1.5">
+                <.icon name="hero-photo" class="w-4 h-4" />
+                <span class="truncate">{entry.client_name}</span>
+                <button
+                  type="button"
+                  phx-click="cancel_upload"
+                  phx-value-ref={entry.ref}
+                  class="ml-auto text-red-500 hover:text-red-700"
+                >
+                  <.icon name="hero-x-mark" class="w-4 h-4" />
+                </button>
+              </div>
+              <%= for err <- upload_errors(@uploads.profile_photo, entry) do %>
+                <p class="text-xs text-red-600 mt-1">⚠ {inspect(err)}</p>
+              <% end %>
+            <% end %>
+          </div>
+
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".PhotoPreview">
+            export default {
+              mounted() {
+                const input = this.el.querySelector('input[type="file"]');
+                const img = document.getElementById("user-photo-preview");
+                if (input && img) {
+                  input.addEventListener("change", e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = evt => { img.src = evt.target.result; };
+                      reader.readAsDataURL(file);
+                    }
+                  });
+                }
+              }
+            }
+          </script>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600">Personal</h2>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <.input field={@form[:name]} type="text" label="Full name" required class="w-full" />
+          </div>
+          <.input field={@form[:age]} type="number" label="Age" required class="w-full" />
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500" for="user-gender">
+              Gender
+            </label>
+            <select
+              id="user-gender"
+              name="user[gender]"
+              required
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select</option>
+              <%= for g <- SkillBridge.Accounts.User.genders() do %>
+                <option value={g} selected={to_string(@form[:gender].value || "") == g}>
+                  {String.replace(g, "_", " ") |> String.capitalize()}
+                </option>
+              <% end %>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-semibold text-slate-500" for="user-education">
+              Education
+            </label>
+            <select
+              id="user-education"
+              name="user[education_level]"
+              required
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select</option>
+              <%= for e <- SkillBridge.Accounts.User.education_levels() do %>
+                <option value={e} selected={to_string(@form[:education_level].value || "") == e}>
+                  {String.capitalize(e)}
+                </option>
+              <% end %>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <.input
+              field={@form[:phone]}
+              type="tel"
+              label="Phone (03XXXXXXXXX)"
+              placeholder="03XXXXXXXXX"
+              required
+              class="w-full"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+          Location — Pakistan
+        </h2>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Province</label>
+            <select
+              name="province_select"
+              phx-change="province_changed"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select province</option>
+              <%= for p <- SkillBridge.PakistanLocations.provinces() do %>
+                <option value={p} selected={@province == p}>{p}</option>
+              <% end %>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">District</label>
+            <select
+              name="district_select"
+              phx-change="district_changed"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select district</option>
+              <%= for d <- @districts do %>
+                <option value={d} selected={@district == d}>{d}</option>
+              <% end %>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Tehsil</label>
+            <select
+              name="user[tehsil]"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select tehsil</option>
+              <%= for t <- @tehsils do %>
+                <option value={t} selected={to_string(@form[:tehsil].value || "") == t}>
+                  {t}
+                </option>
+              <% end %>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">City</label>
+            <select
+              name="user[city]"
+              required
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select city</option>
+              <%= for c <- @cities do %>
+                <option value={c} selected={to_string(@form[:city].value || "") == c}>{c}</option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+        <input type="hidden" name="user[province]" value={@province} />
+        <input type="hidden" name="user[district]" value={@district} />
+      </div>
+
+      <button
+        type="submit"
+        disabled={@saving}
+        id="user-profile-save"
+        class="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white shadow transition hover:bg-slate-800 disabled:opacity-60"
+      >
+        {if @saving, do: "Saving…", else: "Save profile"}
+      </button>
+    </.form>
+  </div>
+</Layouts.app>

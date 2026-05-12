@@ -1,0 +1,115 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="mx-auto w-full max-w-3xl space-y-5">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">My Live Location</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Share your approximate area so clients can find you on the map.
+        Your exact address is never revealed.
+      </p>
+    </div>
+
+    <%!-- Privacy notice --%>
+    <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+      🔒 <strong>Privacy protected</strong> — your location is offset by ~500 m before
+      being shown to clients. They see your neighbourhood, not your exact position.
+    </div>
+
+    <%!-- Sharing status card --%>
+    <div class={[
+      "rounded-2xl border p-6 text-center shadow-sm transition",
+      if(@sharing, do: "border-emerald-200 bg-emerald-50", else: "border-slate-200 bg-slate-50")
+    ]}>
+      <div class="text-4xl">
+        <%= if @sharing do %>
+          <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            ●
+          </span>
+        <% else %>
+          <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+            ●
+          </span>
+        <% end %>
+      </div>
+
+      <p class={[
+        "mt-3 text-lg font-bold",
+        if(@sharing, do: "text-emerald-700", else: "text-slate-700")
+      ]}>
+        {if @sharing, do: "Sharing Location — LIVE", else: "Location Sharing OFF"}
+      </p>
+
+      <p class="mt-2 text-sm text-slate-500">
+        {if @sharing,
+          do: "Clients can see your approximate area on the map",
+          else: "Turn on to appear on the map for clients"}
+      </p>
+
+      <%!-- Show area label (safe) — never raw GPS --%>
+      <%= if @location_label do %>
+        <p class="mt-2 text-sm font-medium text-emerald-700">
+          📍 {@location_label}
+        </p>
+      <% else %>
+        <%= if @has_location do %>
+          <p class="mt-2 text-xs text-slate-400">
+            📍 Location set (approximate area shared with clients)
+          </p>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%!-- Toggle button --%>
+    <button
+      id="toggle-sharing-btn"
+      phx-click="toggle_sharing"
+      class={[
+        "w-full rounded-xl border px-4 py-3 text-base font-bold transition hover:-translate-y-0.5",
+        if(@sharing,
+          do: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+          else:
+            "border-slate-900 bg-gradient-to-r from-slate-900 to-slate-700 text-white hover:shadow-lg"
+        )
+      ]}
+    >
+      {if @sharing, do: "⏹ Stop Sharing Location", else: "▶ Start Sharing My Location"}
+    </button>
+
+    <%!-- Map --%>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-slate-900">Set Your Area</h3>
+      <p class="mt-1 text-xs text-slate-500">
+        Click the map to set your area, or use Detect Location.
+        The pin shown is approximate — your exact position is not stored.
+      </p>
+      <div
+        id="my-location-map"
+        phx-hook="SkilledLocationMap"
+        phx-update="ignore"
+        data-lat=""
+        data-lng=""
+        data-use-workers-channel={@sharing}
+        class="mt-3 h-72 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+      >
+      </div>
+      <button
+        id="get-loc-btn"
+        phx-click="detect_location"
+        class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+      >
+        📡 Detect My Location (approximate)
+      </button>
+    </div>
+
+    <p class="text-center text-xs leading-6 text-slate-500">
+      Location updates every 5 seconds when sharing is ON.<br />
+      Your browser will ask for location permission.<br />
+      <span class="text-blue-500">Coordinates are offset ~500 m for privacy.</span>
+    </p>
+
+    <.step_navigation back={~p"/skilled"} next={~p"/map"} next_label="View Public Map" />
+  </div>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+</Layouts.app>

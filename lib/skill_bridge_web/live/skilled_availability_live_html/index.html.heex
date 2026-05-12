@@ -1,0 +1,141 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
+  <div class="mb-8 flex items-center gap-4">
+    <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-sky-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
+      <.icon name="hero-calendar-days" class="w-7 h-7 text-white" />
+    </div>
+    <div>
+      <h1 class="text-3xl font-bold bg-gradient-to-r from-violet-600 to-sky-500 bg-clip-text text-transparent">
+        Set Your Availability
+      </h1>
+      <p class="text-base-content/60 text-sm mt-0.5">
+        Define when clients can book your services
+      </p>
+    </div>
+  </div>
+
+  <%= if @profile do %>
+    <div class="card bg-base-100 border border-base-200 rounded-2xl shadow-xl overflow-hidden">
+      <div class="px-6 py-4 bg-gradient-to-r from-violet-600/10 via-sky-500/10 to-emerald-400/10 border-b border-base-200 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-lg">Availability Slots</h2>
+          <p class="text-xs text-base-content/50 mt-0.5">{length(@slots)} slot(s) configured</p>
+        </div>
+        <button
+          type="button"
+          phx-click="add_slot"
+          class="btn btn-sm gap-2 bg-gradient-to-r from-violet-600 to-sky-500 text-white border-0 hover:scale-105 hover:shadow-lg hover:shadow-violet-500/30 transition-all duration-200"
+        >
+          <.icon name="hero-plus-circle" class="w-4 h-4" /> Add Slot
+        </button>
+      </div>
+
+      <div class="p-6">
+        <%= if @slots == [] do %>
+          <div class="text-center py-16">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-violet-500/20 to-sky-500/20 flex items-center justify-center">
+              <.icon name="hero-calendar" class="w-10 h-10 text-violet-400" />
+            </div>
+            <p class="text-base-content/50 font-medium">
+              No slots yet — click "Add Slot" to begin
+            </p>
+          </div>
+        <% else %>
+          <.form for={%{}} id="availability-form" phx-submit="save" class="space-y-3">
+            <%= for {slot, idx} <- Enum.with_index(@slots) do %>
+              <% day_val = get_slot_value(slot, :day_of_week) || 1 %>
+              <div class={"flex flex-wrap gap-3 items-end p-4 rounded-xl bg-gradient-to-r border #{day_gradient(day_val)} transition-all duration-300 hover:scale-[1.01] hover:shadow-md"}>
+                <div class="form-control flex-1 min-w-[150px]">
+                  <label class="label pb-1">
+                    <span class="label-text text-xs font-semibold uppercase tracking-wider text-base-content/60">
+                      Day
+                    </span>
+                  </label>
+                  <select
+                    name={"slots[#{idx}][day_of_week]"}
+                    class="select select-sm select-bordered w-full bg-base-100/80"
+                  >
+                    <%= for {label, val} <- @day_options do %>
+                      <option value={val} selected={day_val == val}>{label}</option>
+                    <% end %>
+                  </select>
+                </div>
+                <div class="form-control flex-1 min-w-[130px]">
+                  <label class="label pb-1">
+                    <span class="label-text text-xs font-semibold uppercase tracking-wider text-base-content/60">
+                      Start
+                    </span>
+                  </label>
+                  <input
+                    type="time"
+                    name={"slots[#{idx}][start_time]"}
+                    value={get_slot_value(slot, :start_time) |> time_to_string()}
+                    class="input input-sm input-bordered w-full bg-base-100/80"
+                    required
+                  />
+                </div>
+                <div class="form-control flex-1 min-w-[130px]">
+                  <label class="label pb-1">
+                    <span class="label-text text-xs font-semibold uppercase tracking-wider text-base-content/60">
+                      End
+                    </span>
+                  </label>
+                  <input
+                    type="time"
+                    name={"slots[#{idx}][end_time]"}
+                    value={get_slot_value(slot, :end_time) |> time_to_string()}
+                    class="input input-sm input-bordered w-full bg-base-100/80"
+                    required
+                  />
+                </div>
+                <button
+                  type="button"
+                  phx-click="remove_slot"
+                  phx-value-index={idx}
+                  class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:scale-110 transition-all duration-150"
+                >
+                  <.icon name="hero-trash" class="w-4 h-4" />
+                </button>
+              </div>
+            <% end %>
+
+            <div class="flex gap-3 pt-4">
+              <button
+                type="submit"
+                disabled={@saving}
+                class="btn gap-2 bg-gradient-to-r from-violet-600 to-sky-500 text-white border-0 hover:shadow-lg hover:shadow-violet-500/30 hover:scale-105 transition-all duration-200 disabled:opacity-60"
+              >
+                <%= if @saving do %>
+                  <span class="loading loading-spinner loading-sm"></span> Saving…
+                <% else %>
+                  <.icon name="hero-check-circle" class="w-5 h-5" /> Save Availability
+                <% end %>
+              </button>
+              <.link navigate={~p"/skilled"} class="btn btn-ghost transition-all duration-200">
+                Cancel
+              </.link>
+            </div>
+          </.form>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="alert mt-6 bg-gradient-to-r from-sky-500/10 to-violet-500/10 border border-sky-400/30 rounded-xl">
+      <.icon name="hero-information-circle" class="w-5 h-5 text-sky-500 shrink-0" />
+      <span class="text-sm text-base-content/70">
+        Clients can only book during your availability slots. All slots are saved atomically — either all succeed or none are changed.
+      </span>
+    </div>
+  <% else %>
+    <div class="card bg-base-200 border-2 border-dashed border-base-300 rounded-2xl p-12 text-center">
+      <div class="text-6xl mb-4">👤</div>
+      <h3 class="text-xl font-semibold mb-2">Profile required</h3>
+      <p class="text-base-content/60 mb-6">Create your skilled person profile first.</p>
+      <.link
+        navigate={~p"/skilled/profile"}
+        class="btn bg-gradient-to-r from-violet-600 to-sky-500 text-white border-0"
+      >
+        <.icon name="hero-user-circle" class="w-5 h-5" /> Create Profile
+      </.link>
+    </div>
+  <% end %>
+</Layouts.app>
