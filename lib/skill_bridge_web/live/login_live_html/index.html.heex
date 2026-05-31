@@ -62,7 +62,7 @@
           <div class="testimonial-author">— Sarah K., Lahore</div>
         </div>
       </div>
-      <div class="left-footer">© 2026 SkillBridge · Pakistan's Skills Platform</div>
+      <div class="left-footer">© 2026 SkillBridge · Connect. Work. Grow.</div>
     </div>
     
 <!-- Right -->
@@ -127,6 +127,17 @@
             </.link>
           </div>
         </form>
+
+        <%= if @oauth_enabled do %>
+          <div class="divider">or continue with</div>
+          <a
+            href={~p"/auth/google?role=user"}
+            class="admin-btn"
+            style="margin-bottom:0.5rem;background:#fff;color:#1A2744;border:1.5px solid #E2DDD5"
+          >
+            Continue with Google
+          </a>
+        <% end %>
 
         <div class="divider">Admin access?</div>
 

@@ -188,6 +188,14 @@ defmodule SkillBridgeWeb.BookLive do
              dt:
                "This professional is not available at that time. Choose a time within the displayed slots."
            })}
+
+        {:error, :slot_taken} ->
+          {:noreply,
+           socket
+           |> assign(:submitting, false)
+           |> assign(:errors, %{
+             dt: "That time slot was just booked. Please choose another time."
+           })}
       end
     end
   end

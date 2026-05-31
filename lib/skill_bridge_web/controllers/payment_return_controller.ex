@@ -25,19 +25,19 @@ defmodule SkillBridgeWeb.PaymentReturnController do
     else
       case Stripe.retrieve_checkout_session(sid) do
         {:ok, session} ->
-          if session["payment_status"] == "paid" do
-            _ = Payments.sync_payment_from_checkout_session(session)
+          case Payments.verify_checkout_session_for_booking(session, booking.id, user.id) do
+            :ok ->
+              handle_paid_session(conn, session, bid)
 
-            conn
-            |> put_flash(:info, "Payment confirmed. Thank you!")
-            |> redirect(to: ~p"/user/pay/#{bid}")
-          else
-            conn
-            |> put_flash(
-              :error,
-              "Payment not completed yet. If you were charged, status will update shortly."
-            )
-            |> redirect(to: ~p"/user/pay/#{bid}")
+            {:error, :booking_mismatch} ->
+              conn
+              |> put_flash(:error, "This payment does not match your booking.")
+              |> redirect(to: ~p"/user/pay/#{bid}")
+
+            {:error, :payer_mismatch} ->
+              conn
+              |> put_flash(:error, "Payment access denied.")
+              |> redirect(to: ~p"/user/pay/#{bid}")
           end
 
         {:error, _} ->
@@ -45,6 +45,33 @@ defmodule SkillBridgeWeb.PaymentReturnController do
           |> put_flash(:error, "Could not verify payment with Stripe.")
           |> redirect(to: ~p"/user/pay/#{bid}")
       end
+    end
+  end
+
+  defp handle_paid_session(conn, session, bid) do
+    case Payments.sync_payment_from_checkout_session(session) do
+      {:ok, _} ->
+        conn
+        |> put_flash(:info, "Payment confirmed. Thank you!")
+        |> redirect(to: ~p"/user/pay/#{bid}")
+
+      {:error, :not_paid} ->
+        conn
+        |> put_flash(
+          :error,
+          "Payment not completed yet. If you were charged, status will update shortly."
+        )
+        |> redirect(to: ~p"/user/pay/#{bid}")
+
+      {:error, :already_paid} ->
+        conn
+        |> put_flash(:info, "This booking is already paid.")
+        |> redirect(to: ~p"/user/pay/#{bid}")
+
+      {:error, _} ->
+        conn
+        |> put_flash(:error, "Could not record payment. Contact support with your receipt.")
+        |> redirect(to: ~p"/user/pay/#{bid}")
     end
   end
 end

@@ -91,13 +91,17 @@ config :phoenix_live_view,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
-config :skill_bridge, :payments, mode: :stripe
+# Use simulated card payments locally unless STRIPE_SECRET_KEY is set
+payments_mode =
+  if System.get_env("STRIPE_SECRET_KEY") in [nil, ""], do: :simulated, else: :stripe
+
+config :skill_bridge, :payments, mode: payments_mode
 
 config :skill_bridge, :stripe,
   secret_key: System.get_env("STRIPE_SECRET_KEY"),
   webhook_secret: System.get_env("STRIPE_WEBHOOK_SECRET"),
   publishable_key: System.get_env("STRIPE_PUBLISHABLE_KEY"),
-  currency: System.get_env("STRIPE_CURRENCY", "usd")
+  currency: System.get_env("STRIPE_CURRENCY", "pkr")
 
 # Supabase OAuth (Google sign-in)
 # Set SUPABASE_URL and SUPABASE_ANON_KEY in your environment before starting the server

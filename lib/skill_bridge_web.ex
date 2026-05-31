@@ -84,6 +84,7 @@ defmodule SkillBridgeWeb do
 
       # HTML escaping functionality
       import Phoenix.HTML
+      import Phoenix.Controller, only: [get_csrf_token: 0]
       # Core UI components
       import SkillBridgeWeb.CoreComponents
       import SkillBridgeWeb.NavigationComponents

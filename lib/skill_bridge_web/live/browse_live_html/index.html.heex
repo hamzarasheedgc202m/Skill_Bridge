@@ -45,6 +45,8 @@
               <div>
                 <p class="font-semibold text-gray-900 text-sm">{p.user.name}</p>
                 <p class="text-xs text-gray-400">{p.skill_category.name}</p>
+                <% r = review_for(@review_stats, p.id) %>
+                <.star_rating avg={r.avg} count={r.count} class="text-xs" />
                 <%= if p.city do %>
                   <p class="text-xs text-gray-400 mt-0.5">📍 {p.city}</p>
                 <% end %>

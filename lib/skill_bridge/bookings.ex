@@ -52,6 +52,9 @@ defmodule SkillBridge.Bookings do
       profile_id != nil and not Skills.available_at?(profile_id, scheduled_at) ->
         {:error, :not_available}
 
+      profile_id != nil and slot_taken?(profile_id, scheduled_at) ->
+        {:error, :slot_taken}
+
       true ->
         result =
           %Booking{}
@@ -76,6 +79,21 @@ defmodule SkillBridge.Bookings do
       _ -> nil
     end
   end
+
+  @doc """
+  Returns true if another non-cancelled booking already uses this slot.
+  """
+  def slot_taken?(skilled_profile_id, %DateTime{} = scheduled_at) do
+    Booking
+    |> where(
+      [b],
+      b.skilled_profile_id == ^skilled_profile_id and b.scheduled_at == ^scheduled_at and
+        b.status not in ["cancelled"]
+    )
+    |> Repo.exists?()
+  end
+
+  def slot_taken?(_, _), do: false
 
   def confirm_booking(booking) do
     if booking.status != "pending" do

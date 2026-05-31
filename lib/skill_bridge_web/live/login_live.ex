@@ -9,6 +9,7 @@ defmodule SkillBridgeWeb.LoginLive do
      |> assign(:page_title, "Sign In — SkillBridge")
      |> assign(:current_scope, nil)
      |> assign(:current_user, nil)
+     |> assign(:oauth_enabled, SkillBridge.OAuth.configured?())
      |> assign(:show_password, false)
      |> assign(:form, to_form(%{"email" => "", "password" => ""}, as: :user))}
   end

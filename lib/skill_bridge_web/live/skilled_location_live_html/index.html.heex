@@ -85,9 +85,10 @@
         id="my-location-map"
         phx-hook="SkilledLocationMap"
         phx-update="ignore"
-        data-lat=""
-        data-lng=""
-        data-use-workers-channel={@sharing}
+        data-lat={if @map_lat, do: @map_lat, else: ""}
+        data-lng={if @map_lng, do: @map_lng, else: ""}
+        data-use-workers-channel={if @sharing, do: "true", else: "false"}
+        data-tracking={if @sharing, do: "true", else: "false"}
         class="mt-3 h-72 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
       >
       </div>
@@ -101,7 +102,7 @@
     </div>
 
     <p class="text-center text-xs leading-6 text-slate-500">
-      Location updates every 5 seconds when sharing is ON.<br />
+      Location updates every few seconds when sharing is ON (like ride-hailing apps).<br />
       Your browser will ask for location permission.<br />
       <span class="text-blue-500">Coordinates are offset ~500 m for privacy.</span>
     </p>

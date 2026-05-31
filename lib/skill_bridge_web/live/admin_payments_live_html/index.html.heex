@@ -13,13 +13,18 @@
   </div>
 
   <%!-- Pending cash/bank/wallet alert --%>
-  <% pending_manual = Enum.filter(@payments, fn p -> p.status == "pending" and p.payment_method in ["cash", "bank", "wallet"] end) %>
+  <% pending_manual =
+    Enum.filter(@payments, fn p ->
+      p.status == "pending" and p.payment_method in ["cash", "bank", "wallet"]
+    end) %>
   <%= if pending_manual != [] do %>
     <div class="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 text-sm text-amber-800">
       <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-amber-500 shrink-0" />
       <span>
-        <strong>{length(pending_manual)}</strong> pending manual payment(s) need your confirmation.
-        Filter by <strong>Pending</strong> to review them.
+        <strong>{length(pending_manual)}</strong>
+        pending manual payment(s) need your confirmation.
+        Filter by <strong>Pending</strong>
+        to review them.
       </span>
     </div>
   <% end %>
@@ -27,15 +32,21 @@
   <%!-- Summary cards --%>
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
     <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
-      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Platform Revenue</p>
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">
+        Platform Revenue
+      </p>
       <p class="text-xl font-bold text-emerald-600">PKR {Float.round(@revenue / 100, 0)}</p>
     </div>
     <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
-      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Total Volume</p>
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">
+        Total Volume
+      </p>
       <p class="text-xl font-bold text-base-content">PKR {Float.round(@volume / 100, 0)}</p>
     </div>
     <div class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
-      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">Completed</p>
+      <p class="text-xs text-base-content/40 uppercase tracking-wider font-medium mb-1">
+        Completed
+      </p>
       <p class="text-xl font-bold text-base-content">
         {Enum.count(@payments, &(&1.status == "completed"))}
       </p>
@@ -58,7 +69,8 @@
           "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150",
           if(@filter_status == val,
             do: "bg-primary text-primary-content border-primary shadow-sm",
-            else: "bg-base-200 text-base-content/70 border-base-300 hover:border-primary hover:text-primary"
+            else:
+              "bg-base-200 text-base-content/70 border-base-300 hover:border-primary hover:text-primary"
           )
         ]}
       >
@@ -110,8 +122,12 @@
 
                 <td class="py-3 px-4">
                   <%= if p.booking && p.booking.skilled_profile do %>
-                    <p class="text-base-content/80">{p.booking.skilled_profile.skill_category.name}</p>
-                    <p class="text-xs text-base-content/40">{p.booking.skilled_profile.user.name}</p>
+                    <p class="text-base-content/80">
+                      {p.booking.skilled_profile.skill_category.name}
+                    </p>
+                    <p class="text-xs text-base-content/40">
+                      {p.booking.skilled_profile.user.name}
+                    </p>
                   <% else %>
                     <span class="text-base-content/30">—</span>
                   <% end %>

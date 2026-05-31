@@ -260,6 +260,15 @@
                   "Location not set"
               end}
             </p>
+            <% r = review_for(@review_stats, profile.id) %>
+            <p style="font-size:0.78rem;margin-bottom:0.5rem">
+              <%= if r.count > 0 and r.avg do %>
+                <span style="color:#D97706;font-weight:600">★ {r.avg}</span>
+                <span style="color:#8FA3C0"> ({r.count} reviews)</span>
+              <% else %>
+                <span style="color:#8FA3C0">No reviews yet</span>
+              <% end %>
+            </p>
             
 <!-- Bio -->
             <%= if profile.bio do %>

@@ -1,5 +1,4 @@
 <Layouts.app flash={@flash} current_scope={@current_scope} current_user={@current_user}>
-
   <%!-- ── HEADER ── --%>
   <div class="relative mb-5 flex items-start justify-between gap-4">
     <div class="min-w-0">
@@ -56,7 +55,6 @@
 
   <%!-- ── CLOCK + TODAY'S BOOKINGS + CHAT NOTIFICATIONS ── --%>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-
     <%!-- Left: Digital Clock + Today's Bookings --%>
     <div class="flex flex-col gap-4">
       <%!-- Clock Panel --%>
@@ -97,7 +95,10 @@
       <div class="rounded-2xl border border-base-300 bg-base-100 p-5 flex-1">
         <div class="flex items-center justify-between mb-4">
           <p class="font-semibold text-base-content">📅 Today's Appointments</p>
-          <.link navigate={~p"/user/bookings"} class="text-xs text-primary hover:underline font-medium">
+          <.link
+            navigate={~p"/user/bookings"}
+            class="text-xs text-primary hover:underline font-medium"
+          >
             View all →
           </.link>
         </div>
@@ -161,7 +162,10 @@
             </span>
           <% end %>
         </div>
-        <.link navigate={~p"/user/bookings"} class="text-xs text-primary hover:underline font-medium">
+        <.link
+          navigate={~p"/user/bookings"}
+          class="text-xs text-primary hover:underline font-medium"
+        >
           All bookings →
         </.link>
       </div>
@@ -204,9 +208,11 @@
           <% end %>
         </div>
         <%!-- Also show recent bookings with no unread if any --%>
-        <% other_bookings = Enum.filter(@bookings, fn b ->
-          Map.get(@unread_map, b.id, 0) == 0 and b.status in ["confirmed", "pending"]
-        end) |> Enum.take(3) %>
+        <% other_bookings =
+          Enum.filter(@bookings, fn b ->
+            Map.get(@unread_map, b.id, 0) == 0 and b.status in ["confirmed", "pending"]
+          end)
+          |> Enum.take(3) %>
         <%= if other_bookings != [] do %>
           <div class="mt-3 border-t border-base-200 pt-3">
             <p class="text-xs text-base-content/40 mb-2">Other active bookings</p>
@@ -229,14 +235,19 @@
   <div class="rounded-2xl border border-base-300 bg-base-100 p-5 mb-6">
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-semibold text-base-content">💳 Payment Summary</h2>
-      <.link navigate={~p"/user/bookings"} class="text-xs text-primary hover:underline font-medium">
+      <.link
+        navigate={~p"/user/bookings"}
+        class="text-xs text-primary hover:underline font-medium"
+      >
         View bookings →
       </.link>
     </div>
 
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
       <div class="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-        <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">Total Paid</p>
+        <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">
+          Total Paid
+        </p>
         <p class="text-xl font-bold text-emerald-700">
           PKR {trunc((@total_paid_cents || 0) / 100)}
         </p>
@@ -247,7 +258,9 @@
         <p class="text-xs text-amber-600/70">payment(s)</p>
       </div>
       <div class="rounded-xl bg-blue-50 border border-blue-200 p-3 col-span-2 sm:col-span-1">
-        <p class="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">Transactions</p>
+        <p class="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">
+          Transactions
+        </p>
         <p class="text-xl font-bold text-blue-700">{length(@recent_payments)}</p>
         <p class="text-xs text-blue-600/70">completed</p>
       </div>
@@ -266,10 +279,14 @@
                   <.icon name="hero-check" class="w-3.5 h-3.5 text-emerald-600" />
                 </div>
                 <div class="min-w-0">
-                  <p class="font-mono text-xs text-base-content/60 truncate">{p.transaction_ref}</p>
+                  <p class="font-mono text-xs text-base-content/60 truncate">
+                    {p.transaction_ref}
+                  </p>
                   <p class="text-xs text-base-content/40">
-                    {String.upcase(p.payment_method)}
-                    · {Calendar.strftime(p.inserted_at, "%d %b %Y")}
+                    {String.upcase(p.payment_method)} · {Calendar.strftime(
+                      p.inserted_at,
+                      "%d %b %Y"
+                    )}
                   </p>
                 </div>
               </div>
@@ -327,5 +344,4 @@
       </div>
     </.link>
   </div>
-
 </Layouts.app>

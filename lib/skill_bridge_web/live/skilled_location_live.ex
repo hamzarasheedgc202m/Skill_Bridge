@@ -12,16 +12,26 @@ defmodule SkillBridgeWeb.SkilledLocationLive do
     loc = profile && Location.get_worker_location(profile.id)
     sharing = (loc && loc.is_sharing) || false
 
-    {:ok,
-     socket
-     |> assign(:page_title, "My Location")
-     |> assign(:current_user, user)
-     |> assign(:current_scope, user.role)
-     |> assign(:profile, profile)
-     |> assign(:sharing, sharing)
-     # Never expose exact GPS — only store whether we have a location
-     |> assign(:has_location, not is_nil(loc))
-     |> assign(:location_label, nil)}
+    socket =
+      socket
+      |> assign(:page_title, "My Location")
+      |> assign(:current_user, user)
+      |> assign(:current_scope, user.role)
+      |> assign(:profile, profile)
+      |> assign(:sharing, sharing)
+      |> assign(:has_location, loc != nil && loc.latitude != nil)
+      |> assign(:map_lat, loc && loc.latitude)
+      |> assign(:map_lng, loc && loc.longitude)
+      |> assign(:location_label, nil)
+
+    socket =
+      if connected?(socket) && sharing do
+        push_event(socket, "location:sharing_changed", %{enabled: true})
+      else
+        socket
+      end
+
+    {:ok, socket}
   end
 
   defp fetch_user(session) do
@@ -41,36 +51,50 @@ defmodule SkillBridgeWeb.SkilledLocationLive do
       new_sharing = !socket.assigns.sharing
       Location.toggle_sharing(profile.id, new_sharing)
 
-      {:noreply,
-       socket
-       |> assign(:sharing, new_sharing)
-       |> put_flash(
-         :info,
-         if(new_sharing,
-           do: "Location sharing ON — clients will see your approximate area",
-           else: "Location sharing OFF"
-         )
-       )}
+      socket =
+        socket
+        |> assign(:sharing, new_sharing)
+        |> push_event("location:sharing_changed", %{enabled: new_sharing})
+        |> put_flash(
+          :info,
+          if(new_sharing,
+            do: "Live sharing ON — your position updates every few seconds on the map",
+            else: "Live sharing OFF"
+          )
+        )
+
+      socket =
+        if new_sharing do
+          push_event(socket, "location:detect", %{})
+        else
+          socket
+        end
+
+      {:noreply, socket}
     end
   end
 
-  # Receives GPS from the browser — fuzz and store, never echo exact coords back
   def handle_event("update_location", %{"lat" => lat, "lng" => lng}, socket) do
     profile = socket.assigns.profile
 
     if profile && socket.assigns.sharing do
-      # Fuzzing happens inside upsert_location and broadcast_location
-      {:ok, _} = Location.upsert_location(profile.id, lat, lng, true)
-      Location.broadcast_location(profile.id, lat, lng)
+      case Location.upsert_location(profile.id, lat, lng, true) do
+        {:ok, loc} ->
+          {:noreply,
+           socket
+           |> assign(:has_location, true)
+           |> assign(:map_lat, loc.latitude)
+           |> assign(:map_lng, loc.longitude)
+           |> push_event("location:set_marker", %{lat: loc.latitude, lng: loc.longitude})}
 
-      # Mark that we have a location but don't assign raw coords to socket
-      {:noreply, assign(socket, :has_location, true)}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Could not save location.")}
+      end
     else
       {:noreply, socket}
     end
   end
 
-  # Reverse-geocode label from JS (city/area name — safe to show)
   def handle_event("location_selected", params, socket) do
     label =
       [params["city"], params["state"], params["country"]]

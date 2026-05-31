@@ -25,7 +25,10 @@ defmodule SkillBridgeWeb.Layouts do
         >
           <.icon name="hero-bars-3" class="w-5 h-5" />
         </button>
-        <a href={dashboard_path(@current_scope)} class="flex items-center gap-2 text-base-content no-underline">
+        <a
+          href={dashboard_path(@current_scope)}
+          class="flex items-center gap-2 text-base-content no-underline"
+        >
           <span class="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0"></span>
           <span class="font-bold text-lg tracking-tight font-serif">SkillBridge</span>
         </a>

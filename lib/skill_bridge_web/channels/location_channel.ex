@@ -3,11 +3,8 @@ defmodule SkillBridgeWeb.LocationChannel do
   Real-time location updates over Phoenix Channels.
 
   Topics:
-  - `location:workers` — skilled users may push positions when profile sharing is ON;
-    updates are mirrored to PubSub for LiveView maps. Sharing is revoked when the
-    channel disconnects if the skilled user had pushed live coordinates.
-  - `location:booking:<id>` — booking client + professional only; ephemeral peer
-    positions (not stored). Booking must be pending or confirmed.
+  - `location:workers` — skilled users push GPS while sharing is ON
+  - `location:booking:<id>` — client + professional ephemeral peer positions
   """
   use SkillBridgeWeb, :channel
 
@@ -16,7 +13,12 @@ defmodule SkillBridgeWeb.LocationChannel do
   @impl true
   def join("location:workers", _payload, socket) do
     user = Accounts.get_user!(socket.assigns.user_id)
-    {:ok, assign(socket, :user_role, user.role)}
+
+    if user.role == "skilled_person" do
+      {:ok, assign(socket, :user_role, user.role)}
+    else
+      {:error, %{reason: "skilled_only"}}
+    end
   end
 
   def join("location:booking:" <> booking_id_str, _payload, socket) do
@@ -58,11 +60,9 @@ defmodule SkillBridgeWeb.LocationChannel do
             profile ->
               loc = Location.get_worker_location(profile.id)
 
-              if loc && loc.is_sharing do
+              if loc == nil || loc.is_sharing do
                 case Location.upsert_location(profile.id, latf, lngf, true) do
                   {:ok, _} ->
-                    Location.broadcast_location(profile.id, latf, lngf)
-
                     {:reply, :ok, assign(socket, :revoke_sharing_on_leave, true)}
 
                   {:error, cs} ->
@@ -85,9 +85,11 @@ defmodule SkillBridgeWeb.LocationChannel do
     else
       case parse_lat_lng(lat, lng) do
         {:ok, latf, lngf} ->
+          {flat, flng} = Location.fuzz_coordinates(latf, lngf)
+
           broadcast_from!(socket, "peer_position", %{
-            lat: latf,
-            lng: lngf,
+            lat: flat,
+            lng: flng,
             role: socket.assigns.booking_role
           })
 

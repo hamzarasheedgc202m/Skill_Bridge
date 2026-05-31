@@ -6,6 +6,7 @@ defmodule SkillBridge.Accounts do
   alias SkillBridge.Repo
   alias SkillBridge.Accounts.User
   alias SkillBridge.Accounts.PasswordResetToken
+  alias SkillBridge.Skills
 
   def get_user!(id), do: Repo.get!(User, id)
   def get_user(id), do: Repo.get(User, id)
@@ -25,7 +26,21 @@ defmodule SkillBridge.Accounts do
 
       {:error, changeset}
     else
-      %User{} |> User.changeset(attrs) |> Repo.insert()
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:user, User.changeset(%User{}, attrs))
+      |> Ecto.Multi.run(:skilled_profile, fn _repo, %{user: user} ->
+        if user.role == "skilled_person" do
+          Skills.ensure_skilled_profile_for_user(user.id)
+        else
+          {:ok, nil}
+        end
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{user: user}} -> {:ok, user}
+        {:error, :user, changeset, _} -> {:error, changeset}
+        {:error, _, reason, _} -> {:error, reason}
+      end
     end
   end
 
@@ -185,14 +200,23 @@ defmodule SkillBridge.Accounts do
       true ->
         # Create new user — no password needed for OAuth
         %User{}
-        |> User.oauth_changeset(%{
-          email: email,
-          name: name,
-          role: role,
-          oauth_provider: provider,
-          oauth_uid: uid
-        })
-        |> Repo.insert()
+
+        case %User{}
+             |> User.oauth_changeset(%{
+               email: email,
+               name: name,
+               role: role,
+               oauth_provider: provider,
+               oauth_uid: uid
+             })
+             |> Repo.insert() do
+          {:ok, user} ->
+            if user.role == "skilled_person", do: Skills.ensure_skilled_profile_for_user(user.id)
+            {:ok, user}
+
+          error ->
+            error
+        end
     end
   end
 end

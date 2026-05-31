@@ -182,7 +182,13 @@ defmodule SkillBridgeWeb.SkilledProfileLive do
   # ── Map pin ────────────────────────────────────────────────────────────────
 
   def handle_event("update_location", %{"lat" => lat, "lng" => lng}, socket) do
-    {:noreply, socket |> assign(:pin_lat, lat) |> assign(:pin_lng, lng)}
+    {flat, flng} = Location.fuzz_coordinates(lat, lng)
+
+    {:noreply,
+     socket
+     |> assign(:pin_lat, flat)
+     |> assign(:pin_lng, flng)
+     |> push_event("location:set_marker", %{lat: flat, lng: flng})}
   end
 
   def handle_event("location_selected", params, socket) do

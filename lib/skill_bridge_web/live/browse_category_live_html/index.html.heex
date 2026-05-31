@@ -49,6 +49,8 @@
               <div>
                 <h3 class="text-lg font-semibold">{profile.user.name}</h3>
                 <p class="text-sm text-base-content/70">{profile.region}</p>
+                <% r = review_for(@review_stats, profile.id) %>
+                <.star_rating avg={r.avg} count={r.count} class="text-xs mt-0.5" />
               </div>
             </div>
 

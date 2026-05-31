@@ -8,8 +8,14 @@
         </p>
         <%= if @live_booking do %>
           <p class="mt-2 rounded-xl border border-teal-200 bg-teal-50/80 px-3 py-2 text-sm text-teal-900">
-            Booking #{@live_booking.id}: live map is shared only between you and your professional.
-            Your GPS is sent only when you tap “Detect My Location”.
+            <strong>Live trip tracking</strong>
+            for booking #{@live_booking.id} — your location updates automatically
+            (approximate area only). The other party sees you move on the map.
+          </p>
+        <% else %>
+          <p class="mt-2 text-sm text-slate-500">
+            Tap <strong>Detect My Location</strong>
+            to see yourself and nearby professionals updating live.
           </p>
         <% end %>
       </div>
@@ -18,7 +24,9 @@
         phx-click="detect_my_location"
         class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-400 hover:shadow"
       >
-        <.icon name="hero-map-pin" class="size-4" /> Detect My Location
+        <.icon name="hero-map-pin" class="size-4" /> {if @live_booking,
+          do: "Start live tracking",
+          else: "Detect my location"}
       </button>
     </div>
 

@@ -6,9 +6,58 @@ defmodule SkillBridge.Payments do
 
   def get_platform_setting do
     case Repo.one(from s in PlatformSetting, limit: 1) do
-      nil -> %PlatformSetting{platform_fee_type: "percentage", platform_fee_value: 10}
-      s -> s
+      nil ->
+        %PlatformSetting{
+          platform_fee_type: "percentage",
+          platform_fee_value: 10,
+          bank_name: "HBL / Meezan Bank",
+          bank_account_title: "SkillBridge Pvt Ltd",
+          bank_account_number: "1234-5678901-234",
+          jazzcash_number: "0300-1234567",
+          easypaisa_number: "0333-9876543"
+        }
+
+      s ->
+        s
     end
+  end
+
+  def completed_payment?(%Payment{status: "completed"}), do: true
+  def completed_payment?(_), do: false
+
+  def booking_paid?(booking_id) do
+    Repo.exists?(
+      from p in Payment,
+        where: p.booking_id == ^booking_id and p.status == "completed"
+    )
+  end
+
+  def get_pending_payment_for_booking(booking_id) do
+    Payment
+    |> where([p], p.booking_id == ^booking_id and p.status == "pending")
+    |> order_by([p], desc: p.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  def payment_status_by_booking_ids([]), do: %{}
+
+  def payment_status_by_booking_ids(booking_ids) when is_list(booking_ids) do
+    Payment
+    |> where([p], p.booking_id in ^booking_ids)
+    |> order_by([p], desc: p.inserted_at)
+    |> Repo.all()
+    |> Enum.group_by(& &1.booking_id)
+    |> Map.new(fn {bid, payments} ->
+      status =
+        cond do
+          Enum.any?(payments, &(&1.status == "completed")) -> :paid
+          Enum.any?(payments, &(&1.status == "pending")) -> :pending
+          true -> :unpaid
+        end
+
+      {bid, status}
+    end)
   end
 
   def update_platform_setting(attrs) do
@@ -39,8 +88,18 @@ defmodule SkillBridge.Payments do
   Simulated immediate payment (used in tests / demos when `:payments` mode is `:simulated`).
   """
   def create_simulated_payment(attrs) do
-    setting = get_platform_setting()
     attrs = to_string_map(attrs)
+    booking_id = int_field(attrs["booking_id"], nil)
+
+    if booking_id && booking_paid?(booking_id) do
+      {:error, :already_paid}
+    else
+      insert_completed_payment(attrs, gateway: "internal", ref_prefix: "SB")
+    end
+  end
+
+  defp insert_completed_payment(attrs, opts) do
+    setting = get_platform_setting()
     amount = int_field(attrs["amount_cents"], 0)
 
     fee =
@@ -49,15 +108,25 @@ defmodule SkillBridge.Payments do
         :error -> calculate_fee(amount, setting)
       end
 
-    ref = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    ref_suffix = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    ref_prefix = Keyword.get(opts, :ref_prefix, "SB")
+    last4 = Map.get(attrs, "card_last4")
+
+    ref =
+      if last4 do
+        "#{ref_prefix}-#{last4}-#{ref_suffix}"
+      else
+        "#{ref_prefix}-#{ref_suffix}"
+      end
 
     %Payment{}
     |> Payment.changeset(
       Map.merge(attrs, %{
         "platform_fee_cents" => fee,
-        "transaction_ref" => "SB-#{ref}",
+        "transaction_ref" => ref,
         "status" => "completed",
-        "gateway" => "internal"
+        "gateway" => Keyword.get(opts, :gateway, "internal"),
+        "payment_method" => Map.get(attrs, "payment_method", "card")
       })
     )
     |> Repo.insert()
@@ -68,21 +137,32 @@ defmodule SkillBridge.Payments do
   """
   def create_pending_manual_payment(attrs) do
     attrs = to_string_map(attrs)
-    amount = int_field(attrs["amount_cents"], 0)
-    setting = get_platform_setting()
-    fee = int_field(Map.get(attrs, "platform_fee_cents", calculate_fee(amount, setting)), 0)
-    ref = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    booking_id = int_field(attrs["booking_id"], nil)
 
-    %Payment{}
-    |> Payment.changeset(
-      Map.merge(attrs, %{
-        "platform_fee_cents" => fee,
-        "transaction_ref" => "SB-#{ref}",
-        "status" => "pending",
-        "gateway" => "internal"
-      })
-    )
-    |> Repo.insert()
+    cond do
+      booking_id && booking_paid?(booking_id) ->
+        {:error, :already_paid}
+
+      booking_id && get_pending_payment_for_booking(booking_id) ->
+        {:error, :payment_pending}
+
+      true ->
+        amount = int_field(attrs["amount_cents"], 0)
+        setting = get_platform_setting()
+        fee = int_field(Map.get(attrs, "platform_fee_cents", calculate_fee(amount, setting)), 0)
+        ref = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+
+        %Payment{}
+        |> Payment.changeset(
+          Map.merge(attrs, %{
+            "platform_fee_cents" => fee,
+            "transaction_ref" => "SB-#{ref}",
+            "status" => "pending",
+            "gateway" => "internal"
+          })
+        )
+        |> Repo.insert()
+    end
   end
 
   @doc """
@@ -138,6 +218,24 @@ defmodule SkillBridge.Payments do
   Starts Stripe Checkout: creates a pending payment row and returns the hosted Checkout URL.
   """
   def start_stripe_checkout(booking, payer, base_amount_cents, fee_cents) do
+    booking_id = booking.id
+
+    cond do
+      booking_paid?(booking_id) ->
+        {:error, :already_paid}
+
+      get_pending_payment_for_booking(booking_id) ->
+        {:error, :payment_pending}
+
+      base_amount_cents + fee_cents <= 0 ->
+        {:error, :zero_amount}
+
+      true ->
+        do_start_stripe_checkout(booking, payer, base_amount_cents, fee_cents)
+    end
+  end
+
+  defp do_start_stripe_checkout(booking, payer, base_amount_cents, fee_cents) do
     total = base_amount_cents + fee_cents
     booking_id = booking.id
 
@@ -177,42 +275,102 @@ defmodule SkillBridge.Payments do
   end
 
   def sync_payment_from_checkout_session(session) when is_map(session) do
-    payment_id =
-      case get_in(session, ["metadata", "payment_id"]) do
-        nil -> nil
-        v when is_binary(v) -> String.to_integer(v)
+    with :ok <- ensure_session_paid(session),
+         {:ok, payment} <- find_payment_for_session(session) do
+      complete_stripe_payment(payment, session)
+    end
+  end
+
+  def ensure_session_paid(%{"payment_status" => "paid"}), do: :ok
+  def ensure_session_paid(_), do: {:error, :not_paid}
+
+  defp find_payment_for_session(session) do
+    session_id = session["id"]
+
+    payment =
+      if is_binary(session_id) do
+        get_payment_by_stripe_session(session_id) ||
+          payment_from_metadata(session)
+      else
+        payment_from_metadata(session)
       end
 
-    if payment_id == nil do
-      {:error, :missing_metadata}
+    case payment do
+      nil -> {:error, :not_found}
+      %Payment{} = p -> {:ok, p}
+    end
+  end
+
+  defp payment_from_metadata(session) do
+    case get_in(session, ["metadata", "payment_id"]) do
+      nil ->
+        nil
+
+      v when is_binary(v) ->
+        case Integer.parse(v) do
+          {id, _} -> Repo.get(Payment, id)
+          :error -> nil
+        end
+    end
+  end
+
+  defp complete_stripe_payment(%Payment{} = payment, session) do
+    if payment.status == "completed" do
+      {:ok, payment}
     else
-      case Repo.get(Payment, payment_id) do
-        nil ->
-          {:error, :not_found}
-
-        payment ->
-          ref =
-            case session["payment_intent"] do
-              nil -> session["id"]
-              pi when is_binary(pi) -> pi
-            end
-
-          pi = session["payment_intent"]
-          pi_str = if is_binary(pi), do: pi, else: nil
-
-          if payment.status == "completed" do
-            {:ok, payment}
-          else
-            payment
-            |> Payment.changeset(%{
-              "status" => "completed",
-              "transaction_ref" => ref,
-              "stripe_checkout_session_id" => session["id"],
-              "stripe_payment_intent_id" => pi_str
-            })
-            |> Repo.update()
+      if booking_paid?(payment.booking_id) do
+        {:error, :already_paid}
+      else
+        ref =
+          case session["payment_intent"] do
+            pi when is_binary(pi) -> pi
+            _ -> session["id"]
           end
+
+        pi_str =
+          case session["payment_intent"] do
+            pi when is_binary(pi) -> pi
+            _ -> nil
+          end
+
+        payment
+        |> Payment.changeset(%{
+          "status" => "completed",
+          "transaction_ref" => ref,
+          "stripe_checkout_session_id" => session["id"],
+          "stripe_payment_intent_id" => pi_str
+        })
+        |> Repo.update()
       end
+    end
+  end
+
+  @doc "Verifies a Stripe checkout session belongs to the expected booking and payer context."
+  def verify_checkout_session_for_booking(session, booking_id, payer_id) when is_map(session) do
+    meta_booking =
+      case get_in(session, ["metadata", "booking_id"]) do
+        v when is_binary(v) -> String.to_integer(v)
+        _ -> nil
+      end
+
+    payment =
+      case find_payment_for_session(session) do
+        {:ok, p} -> p
+        _ -> nil
+      end
+
+    cond do
+      meta_booking != nil and meta_booking != booking_id ->
+        {:error, :booking_mismatch}
+
+      payment != nil and payment.booking_id != booking_id ->
+        {:error, :booking_mismatch}
+
+      payment != nil and payment.payer_id != payer_id ->
+        {:error, :payer_mismatch}
+
+      true ->
+        :ok
     end
   end
 

@@ -18,12 +18,16 @@
         <h2 class="mb-4 text-xs font-bold uppercase tracking-wide text-slate-600">
           Profile Photo
         </h2>
-        <div id="photo-upload-zone" phx-hook=".PhotoPreview" class="flex flex-wrap items-start gap-5">
+        <div
+          id="photo-upload-zone"
+          phx-hook=".PhotoPreview"
+          class="flex flex-wrap items-start gap-5"
+        >
           <%!-- Preview --%>
           <div class="shrink-0">
             <img
               id="user-photo-preview"
-              src={if @image_preview != "", do: @image_preview, else: "/images/avatar_placeholder.png"}
+              src={if @image_preview != "", do: @image_preview, else: "/images/logo.svg"}
               alt="Your photo"
               class="w-24 h-24 rounded-full object-cover border-2 border-slate-200 shadow"
               onerror="this.src=''"

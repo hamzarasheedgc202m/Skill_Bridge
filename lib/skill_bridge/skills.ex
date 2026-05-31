@@ -121,6 +121,30 @@ defmodule SkillBridge.Skills do
     %SkilledProfile{} |> SkilledProfile.changeset(attrs) |> Repo.insert()
   end
 
+  @doc """
+  Creates a pending skilled profile shell when a user registers as skilled_person.
+  """
+  def ensure_skilled_profile_for_user(user_id) do
+    case get_skilled_profile_by_user_id(user_id) do
+      %SkilledProfile{} = profile ->
+        {:ok, profile}
+
+      nil ->
+        category =
+          get_skill_category_by_slug("other") ||
+            List.first(list_skill_categories()) ||
+            raise "No skill categories — run seeds"
+
+        create_skilled_profile_seed(%{
+          user_id: user_id,
+          skill_category_id: category.id,
+          status: "pending",
+          bio: "",
+          region: ""
+        })
+    end
+  end
+
   def approve_skilled_profile(profile, admin_id) do
     if profile_has_pin_location?(profile.id) do
       profile

@@ -46,6 +46,8 @@ defmodule SkillBridgeWeb.Router do
     live "/map", MapLive, :index
     live "/forgot-password", ForgotPasswordLive, :index
     live "/password-reset/:token", ResetPasswordLive, :index
+    get "/auth/google", OAuthController, :google
+    get "/auth/callback", OAuthController, :callback
     post "/login", SessionController, :create
     post "/logout", SessionController, :delete
   end
@@ -101,6 +103,7 @@ defmodule SkillBridgeWeb.Router do
       live "/bookings", AdminBookingsLive, :index
       live "/chat/:booking_id", ChatLive, :index
       live "/payments", AdminPaymentsLive, :index
+      live "/complaints", AdminComplaintsLive, :index
       live "/settings", AdminSettingsLive, :index
     end
   end

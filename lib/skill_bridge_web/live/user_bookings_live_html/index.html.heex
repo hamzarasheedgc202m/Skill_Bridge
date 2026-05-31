@@ -61,13 +61,35 @@
               <% end %>
             </.link>
 
-            <%= if b.status == "confirmed" do %>
+            <%= if b.status in ["pending", "confirmed"] do %>
               <.link
-                navigate={~p"/user/pay/#{b.id}"}
-                class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-medium transition-all border border-amber-100"
+                navigate={~p"/live-location?booking_id=#{b.id}"}
+                class="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg text-xs font-medium transition-all border border-teal-100"
               >
-                💳 Pay
+                📍 Live track
               </.link>
+            <% end %>
+
+            <%= cond do %>
+              <% Map.get(@payment_statuses, b.id) == :paid -> %>
+                <span class="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-100">
+                  ✓ Paid
+                </span>
+              <% Map.get(@payment_statuses, b.id) == :pending -> %>
+                <.link
+                  navigate={~p"/user/pay/#{b.id}"}
+                  class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-medium transition-all border border-amber-100"
+                >
+                  ⏳ Payment pending
+                </.link>
+              <% b.status == "confirmed" -> %>
+                <.link
+                  navigate={~p"/user/pay/#{b.id}"}
+                  class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-medium transition-all border border-amber-100"
+                >
+                  💳 Pay
+                </.link>
+              <% true -> %>
             <% end %>
 
             <%= if b.status in ["pending", "confirmed"] do %>
@@ -81,7 +103,7 @@
               </button>
             <% end %>
 
-            <%!-- ── Review & Complaint (completed bookings only) ── --%>
+            <%!-- ── Review (completed) & Complaint (confirmed/completed) ── --%>
             <%= if b.status == "completed" do %>
               <button
                 phx-click="open_review"
@@ -90,6 +112,8 @@
               >
                 ⭐ Leave Review
               </button>
+            <% end %>
+            <%= if b.status in ["confirmed", "completed"] do %>
               <button
                 phx-click="open_complaint"
                 phx-value-id={b.id}

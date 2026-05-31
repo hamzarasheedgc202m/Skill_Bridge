@@ -2,6 +2,7 @@ defmodule SkillBridgeWeb.BrowseCategoryLive do
   use SkillBridgeWeb, :live_view
 
   alias SkillBridge.Accounts
+  alias SkillBridge.Moderation
   alias SkillBridge.Skills
   alias SkillBridge.Skills.AvailabilitySlot
   embed_templates "browse_category_live_html/*"
@@ -11,6 +12,7 @@ defmodule SkillBridgeWeb.BrowseCategoryLive do
     user = fetch_user(session)
     category = Skills.get_skill_category!(category_id)
     profiles = Skills.list_skilled_profiles(skill_category_id: category.id, approved_only: true)
+    review_stats = Moderation.review_stats_for_profiles(Enum.map(profiles, & &1.id))
 
     {:ok,
      socket
@@ -19,6 +21,7 @@ defmodule SkillBridgeWeb.BrowseCategoryLive do
      |> assign(:current_scope, user.role)
      |> assign(:category, category)
      |> assign(:profiles, profiles)
+     |> assign(:review_stats, review_stats)
      |> assign(:region, "")}
   end
 
@@ -38,7 +41,11 @@ defmodule SkillBridgeWeb.BrowseCategoryLive do
         region: region
       )
 
-    {:noreply, socket |> assign(:region, region) |> assign(:profiles, profiles)}
+    {:noreply,
+     socket
+     |> assign(:region, region)
+     |> assign(:profiles, profiles)
+     |> assign(:review_stats, Moderation.review_stats_for_profiles(Enum.map(profiles, & &1.id)))}
   end
 
   @impl true
@@ -49,7 +56,15 @@ defmodule SkillBridgeWeb.BrowseCategoryLive do
         approved_only: true
       )
 
-    {:noreply, socket |> assign(:region, "") |> assign(:profiles, profiles)}
+    {:noreply,
+     socket
+     |> assign(:region, "")
+     |> assign(:profiles, profiles)
+     |> assign(:review_stats, Moderation.review_stats_for_profiles(Enum.map(profiles, & &1.id)))}
+  end
+
+  defp review_for(stats, profile_id) do
+    Map.get(stats, profile_id, %{avg: nil, count: 0})
   end
 
   @impl true

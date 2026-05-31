@@ -61,6 +61,28 @@
     </.link>
 
     <.link
+      navigate={~p"/admin/complaints"}
+      style="background:#fff;border:1.5px solid #E8E5DF;border-radius:16px;padding:1.8rem;text-decoration:none;color:inherit;display:flex;align-items:flex-start;gap:1rem;transition:all 0.2s"
+      onmouseover="this.style.borderColor='#991B1B';this.style.boxShadow='0 8px 24px rgba(153,27,27,0.08)'"
+      onmouseout="this.style.borderColor='#E8E5DF';this.style.boxShadow='none'"
+    >
+      <div style="width:48px;height:48px;background:#FEF2F2;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">
+        ⚠️
+      </div>
+      <div>
+        <h3 style="font-weight:700;color:#1A2744;margin-bottom:0.3rem">Complaints Inbox</h3>
+        <p style="font-size:0.82rem;color:#8FA3C0;line-height:1.5">
+          Review and resolve all open user complaints
+        </p>
+        <%= if @open_complaints > 0 do %>
+          <span style="display:inline-block;margin-top:0.5rem;padding:0.25rem 0.6rem;background:#FEF2F2;border:1px solid #FECACA;border-radius:100px;font-size:0.72rem;font-weight:600;color:#991B1B">
+            {@open_complaints} open →
+          </span>
+        <% end %>
+      </div>
+    </.link>
+
+    <.link
       navigate={~p"/admin/payments"}
       style="background:#fff;border:1.5px solid #E8E5DF;border-radius:16px;padding:1.8rem;text-decoration:none;color:inherit;display:flex;align-items:flex-start;gap:1rem;transition:all 0.2s"
       onmouseover="this.style.borderColor='#1A2744';this.style.boxShadow='0 8px 24px rgba(26,39,68,0.08)'"

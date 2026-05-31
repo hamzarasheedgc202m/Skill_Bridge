@@ -1,6 +1,7 @@
 defmodule SkillBridgeWeb.PublicBrowseLive do
   use SkillBridgeWeb, :live_view
   embed_templates "public_browse_live_html/*"
+  alias SkillBridge.Moderation
   alias SkillBridge.Skills
 
   @icons %{
@@ -69,7 +70,15 @@ defmodule SkillBridgeWeb.PublicBrowseLive do
     opts =
       if text_search && text_search != "", do: Keyword.put(opts, :search, text_search), else: opts
 
-    assign(socket, :profiles, Skills.list_skilled_profiles(opts))
+    profiles = Skills.list_skilled_profiles(opts)
+
+    socket
+    |> assign(:profiles, profiles)
+    |> assign(:review_stats, Moderation.review_stats_for_profiles(Enum.map(profiles, & &1.id)))
+  end
+
+  defp review_for(stats, profile_id) do
+    Map.get(stats, profile_id, %{avg: nil, count: 0})
   end
 
   @impl true

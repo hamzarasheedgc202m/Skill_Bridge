@@ -1,6 +1,7 @@
 defmodule SkillBridgeWeb.BrowseLive do
   use SkillBridgeWeb, :live_view
   alias SkillBridge.Accounts
+  alias SkillBridge.Moderation
   alias SkillBridge.Skills
   embed_templates "browse_live_html/*"
 
@@ -27,7 +28,12 @@ defmodule SkillBridgeWeb.BrowseLive do
      |> assign(:current_scope, user.role)
      |> assign(:categories, categories)
      |> assign(:search, "")
-     |> assign(:search_results, nil)}
+     |> assign(:search_results, nil)
+     |> assign(:review_stats, %{})}
+  end
+
+  defp review_for(stats, profile_id) do
+    Map.get(stats, profile_id, %{avg: nil, count: 0})
   end
 
   defp fetch_user(session) do
@@ -45,7 +51,12 @@ defmodule SkillBridgeWeb.BrowseLive do
 
     if q != "" do
       profiles = Skills.list_skilled_profiles(approved_only: true, search: q)
-      {:noreply, socket |> assign(:search, q) |> assign(:search_results, profiles)}
+
+      {:noreply,
+       socket
+       |> assign(:search, q)
+       |> assign(:search_results, profiles)
+       |> assign(:review_stats, Moderation.review_stats_for_profiles(Enum.map(profiles, & &1.id)))}
     else
       {:noreply, socket |> assign(:search, "") |> assign(:search_results, nil)}
     end

@@ -74,7 +74,7 @@ defmodule SkillBridge.Moderation do
 
   def list_all_complaints do
     Complaint
-    |> preload([:user, :skilled_profile])
+    |> preload([:user, skilled_profile: [:user]])
     |> order_by([c], desc: c.inserted_at)
     |> Repo.all()
   end
@@ -125,10 +125,75 @@ defmodule SkillBridge.Moderation do
     end
   end
 
+  def review_count_for_profile(skilled_profile_id) do
+    Review
+    |> where([r], r.skilled_profile_id == ^skilled_profile_id)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Returns `%{profile_id => %{avg: float | nil, count: integer}}` for browse cards.
+  """
+  def review_stats_for_profiles([]), do: %{}
+
+  def review_stats_for_profiles(profile_ids) when is_list(profile_ids) do
+    Review
+    |> where([r], r.skilled_profile_id in ^profile_ids)
+    |> group_by([r], r.skilled_profile_id)
+    |> select([r], {r.skilled_profile_id, avg(r.rating), count(r.id)})
+    |> Repo.all()
+    |> Map.new(fn {id, avg, count} ->
+      avg_float =
+        case avg do
+          nil -> nil
+          %Decimal{} = d -> Decimal.to_float(d) |> Float.round(1)
+          n when is_number(n) -> Float.round(n * 1.0, 1)
+        end
+
+      {id, %{avg: avg_float, count: count}}
+    end)
+  end
+
   def create_review(attrs) do
     %Review{}
     |> Review.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc "Only the booking client may review after the booking is completed."
+  def create_review_for_booking(%SkillBridge.Bookings.Booking{} = booking, %User{} = user, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    cond do
+      booking.user_id != user.id ->
+        {:error, :unauthorized}
+
+      booking.status != "completed" ->
+        {:error, :booking_not_completed}
+
+      true ->
+        create_review(attrs)
+    end
+  end
+
+  @doc "Clients may file complaints for confirmed or completed bookings."
+  def create_complaint_for_booking(
+        %SkillBridge.Bookings.Booking{} = booking,
+        %User{} = user,
+        attrs
+      ) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    cond do
+      booking.user_id != user.id ->
+        {:error, :unauthorized}
+
+      booking.status not in ["confirmed", "completed"] ->
+        {:error, :booking_not_eligible}
+
+      true ->
+        create_complaint(attrs)
+    end
   end
 
   def get_review!(id), do: Repo.get!(Review, id) |> Repo.preload([:user, :skilled_profile])

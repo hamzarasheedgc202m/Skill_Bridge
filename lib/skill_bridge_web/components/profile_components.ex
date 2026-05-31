@@ -21,4 +21,23 @@ defmodule SkillBridgeWeb.ProfileComponents do
     <% end %>
     """
   end
+
+  attr :avg, :any, default: nil
+  attr :count, :integer, default: 0
+  attr :class, :string, default: "text-xs text-base-content/70"
+
+  def star_rating(assigns) do
+    ~H"""
+    <%= if @count > 0 and @avg do %>
+      <p class={@class}>
+        <span class="text-amber-500 font-semibold">★ {@avg}</span>
+        <span class="text-base-content/50">
+          ({@count} {if @count == 1, do: "review", else: "reviews"})
+        </span>
+      </p>
+    <% else %>
+      <p class={@class}>No reviews yet</p>
+    <% end %>
+    """
+  end
 end

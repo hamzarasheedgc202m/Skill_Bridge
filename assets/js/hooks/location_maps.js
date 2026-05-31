@@ -1,59 +1,104 @@
 import {reverseGeocode} from "../services/location_api"
+import {
+  joinBookingLocationChannel,
+  leaveBookingChannel,
+  leaveWorkerChannel,
+  pushPeerPosition,
+  pushWorkerPosition
+} from "../user_socket"
 
-const DEFAULT_CENTER = [30.3753, 69.3451]  // Pakistan center
-const DEFAULT_ZOOM   = 6
+const DEFAULT_CENTER = [30.3753, 69.3451]
+const DEFAULT_ZOOM = 6
+const TRACK_OPTIONS = {
+  enableHighAccuracy: true,
+  maximumAge: 5000,
+  timeout: 15000
+}
 
-// ── Icon helpers ────────────────────────────────────────────────────────────
+function whenLeafletReady(cb, attempts = 0) {
+  if (window.L && window.L.map) {
+    cb()
+  } else if (attempts < 40) {
+    setTimeout(() => whenLeafletReady(cb, attempts + 1), 100)
+  } else {
+    console.error("Leaflet failed to load")
+  }
+}
 
 function workerIcon(initial) {
   return window.L.divIcon({
-    html: `<div class="grid h-9 w-9 place-items-center rounded-full border-3 border-white bg-slate-900 text-xs font-bold text-white shadow">${initial}</div>`,
+    html: `<div class="grid h-10 w-10 place-items-center rounded-full border-[3px] border-white bg-slate-900 text-xs font-bold text-white shadow-lg">${initial}</div>`,
     className: "",
-    iconSize: [36, 36],
-    iconAnchor: [18, 18]
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
   })
 }
 
 function userIcon() {
   return window.L.divIcon({
-    html: `<div class="grid h-8 w-8 place-items-center rounded-full border-3 border-white bg-emerald-600 text-sm text-white shadow">📍</div>`,
-    className: "",
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
-  })
-}
-
-function peerIcon(label) {
-  return window.L.divIcon({
-    html: `<div class="grid h-9 w-9 place-items-center rounded-full border-3 border-white bg-indigo-600 text-[10px] font-bold text-white shadow">${label}</div>`,
+    html: `<div class="relative"><div class="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-40"></div><div class="relative grid h-9 w-9 place-items-center rounded-full border-[3px] border-white bg-emerald-600 text-white shadow-lg">📍</div></div>`,
     className: "",
     iconSize: [36, 36],
     iconAnchor: [18, 18]
   })
 }
 
-// ── Leaflet readiness helper ─────────────────────────────────────────────────
-// Leaflet is loaded via <script> tag at bottom of heex — may not be ready
-// synchronously in mounted(). Poll until it appears, then init.
+function peerIcon(label, color) {
+  return window.L.divIcon({
+    html: `<div class="grid h-10 w-10 place-items-center rounded-full border-[3px] border-white text-[10px] font-bold text-white shadow-lg" style="background:${color}">${label}</div>`,
+    className: "",
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  })
+}
 
-function whenLeafletReady(cb, attempts = 0) {
-  if (window.L && window.L.map) {
-    cb()
-  } else if (attempts < 30) {
-    setTimeout(() => whenLeafletReady(cb, attempts + 1), 100)
-  } else {
-    console.error("Leaflet failed to load after 3s")
+function parseWorkers(raw) {
+  try {
+    return JSON.parse(raw || "[]")
+  } catch (_) {
+    return []
   }
 }
 
-// ── LeafletMap (public map for users) ────────────────────────────────────────
+function moveMarker(marker, lat, lng, map) {
+  if (!marker) return
+  marker.setLatLng([lat, lng])
+  if (map && !map.getBounds().contains([lat, lng])) {
+    map.panTo([lat, lng], {animate: true, duration: 0.5})
+  }
+}
+
+function startWatch(callback) {
+  if (!navigator.geolocation) return null
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => callback(pos.coords.latitude, pos.coords.longitude),
+    () => {},
+    TRACK_OPTIONS
+  )
+
+  return navigator.geolocation.watchPosition(
+    (pos) => callback(pos.coords.latitude, pos.coords.longitude),
+    () => {},
+    TRACK_OPTIONS
+  )
+}
+
+function stopWatch(watchId) {
+  if (watchId != null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(watchId)
+  }
+}
+
+// ── Public map (clients + booking live track) ─────────────────────────────
 
 const LeafletMap = {
   mounted() {
-    this.markers       = {}
-    this.userMarker    = null
-    this.peerMarker    = null
-    this.bookingChannel = null
+    this.markers = {}
+    this.userMarker = null
+    this.peerMarker = null
+    this.watchId = null
+    this.bookingId = this.el.dataset.bookingId || ""
 
     whenLeafletReady(() => this.initMap())
   },
@@ -62,40 +107,39 @@ const LeafletMap = {
     this.map = window.L.map(this.el.id).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
 
     window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 18
+      attribution: "© OpenStreetMap",
+      maxZoom: 19
     }).addTo(this.map)
 
+    this.renderWorkers(parseWorkers(this.el.dataset.workers))
+    this.updateUserMarker(this.el.dataset.userLat, this.el.dataset.userLng)
+
+    this.handleEvent("map:workers", ({workers}) => this.renderWorkers(workers))
+    this.handleEvent("map:worker_moved", (w) => this.moveWorker(w))
+    this.handleEvent("map:center_user", ({lat, lng}) => {
+      this.updateUserMarker(lat, lng)
+      if (this.map) this.map.setView([lat, lng], 14)
+    })
+    this.handleEvent("map:peer", (payload) => this.placePeerMarker(payload))
     this.handleEvent("map:detect_my_location", () => this.detectMyLocation())
-    this.renderWorkers()
+    this.handleEvent("map:start_tracking", () => this.startLiveTracking())
+    this.handleEvent("map:stop_tracking", () => this.stopLiveTracking())
 
-    const bookingId = this.el.dataset.bookingId
-    if (bookingId) {
-      import("../user_socket.js").then(({joinBookingLocationChannel}) => {
-        this.bookingChannel = joinBookingLocationChannel(bookingId, {
-          onPeer: (payload) => this.placePeerMarker(payload)
-        })
+    if (this.bookingId) {
+      this.bookingChannel = joinBookingLocationChannel(this.bookingId, {
+        onPeer: (payload) => this.placePeerMarker(payload)
       })
+      this.startLiveTracking()
     }
-  },
-
-  updated() {
-    if (!this.map) return
-    this.renderWorkers()
-    this.updateUserMarker()
   },
 
   destroyed() {
-    if (this.bookingChannel) {
-      this.bookingChannel.leave()
-      this.bookingChannel = null
-    }
+    this.stopLiveTracking()
+    if (this.bookingId) leaveBookingChannel(this.bookingId)
   },
 
-  renderWorkers() {
+  renderWorkers(workers) {
     if (!this.map) return
-    let workers = []
-    try { workers = JSON.parse(this.el.dataset.workers || "[]") } catch (_) {}
 
     const activeIds = new Set(workers.map((w) => String(w.id)))
 
@@ -107,56 +151,99 @@ const LeafletMap = {
     })
 
     workers.forEach((worker) => {
+      const lat = Number(worker.lat)
+      const lng = Number(worker.lng)
+      if (!lat || !lng) return
+
       if (this.markers[worker.id]) {
-        this.markers[worker.id].setLatLng([worker.lat, worker.lng])
+        moveMarker(this.markers[worker.id], lat, lng, this.map)
         return
       }
-      const marker = window.L.marker([worker.lat, worker.lng], {
-        icon: workerIcon((worker.name || "?").charAt(0))
+
+      const marker = window.L.marker([lat, lng], {
+        icon: workerIcon((worker.name || "?").charAt(0).toUpperCase())
       }).addTo(this.map)
 
       marker.bindPopup(
-        `<b>${worker.name}</b><br>${worker.skill}${worker.rate ? `<br>PKR ${worker.rate}/hr` : ""}`
+        `<b>${worker.name}</b><br>${worker.skill}${worker.rate ? `<br>PKR ${Math.round(worker.rate / 100)}/hr` : ""}<br><small>Live · approximate area</small>`
       )
       marker.on("click", () => this.pushEvent("select_worker", {profile_id: String(worker.id)}))
       this.markers[worker.id] = marker
     })
   },
 
-  updateUserMarker() {
-    const lat = Number(this.el.dataset.userLat)
-    const lng = Number(this.el.dataset.userLng)
-    if (!lat || !lng || !this.map) return   // 0,0 treated as unset
+  moveWorker({id, lat, lng}) {
+    const latN = Number(lat)
+    const lngN = Number(lng)
+    if (!latN || !lngN) return
+
+    if (this.markers[id]) {
+      moveMarker(this.markers[id], latN, lngN, this.map)
+    } else {
+      this.renderWorkers([{id, lat: latN, lng: lngN, name: "?", skill: ""}])
+    }
+  },
+
+  updateUserMarker(lat, lng) {
+    const latN = Number(lat)
+    const lngN = Number(lng)
+    if (!this.map || !latN || !lngN) return
 
     if (this.userMarker) {
-      this.userMarker.setLatLng([lat, lng])
+      moveMarker(this.userMarker, latN, lngN, this.map)
     } else {
-      this.userMarker = window.L.marker([lat, lng], {icon: userIcon()}).addTo(this.map)
-      this.userMarker.bindPopup("Your approximate location")
+      this.userMarker = window.L.marker([latN, lngN], {icon: userIcon()}).addTo(this.map)
+      this.userMarker.bindPopup("You (live)")
     }
   },
 
   placePeerMarker(payload) {
-    if (!this.map || !window.L) return
+    if (!this.map) return
     const lat = Number(payload.lat)
     const lng = Number(payload.lng)
     if (!lat || !lng) return
 
-    const label = payload.role === "professional" ? "Pro" : "Client"
-    const title = payload.role === "professional" ? "Professional" : "Client"
+    const isPro = payload.role === "professional"
+    const label = isPro ? "Pro" : "Client"
+    const color = isPro ? "#4f46e5" : "#0d9488"
 
     if (this.peerMarker) {
       this.peerMarker.setLatLng([lat, lng])
+      this.peerMarker.setIcon(peerIcon(label, color))
     } else {
-      this.peerMarker = window.L.marker([lat, lng], {icon: peerIcon(label)}).addTo(this.map)
+      this.peerMarker = window.L.marker([lat, lng], {icon: peerIcon(label, color)}).addTo(this.map)
     }
-    this.peerMarker.setIcon(peerIcon(label))
-    this.peerMarker.bindPopup(`${title} (approximate area)`)
+    this.peerMarker.bindPopup(`${label} (live · approximate)`)
+    this.map.fitBounds(
+      window.L.latLngBounds([
+        [lat, lng],
+        this.userMarker ? this.userMarker.getLatLng() : [lat, lng]
+      ]).pad(0.2),
+      {maxZoom: 15}
+    )
+  },
+
+  startLiveTracking() {
+    if (this.watchId != null) return
+
+    this.watchId = startWatch((lat, lng) => {
+      this.updateUserMarker(lat, lng)
+      this.pushEvent("user_location", {lat, lng})
+
+      if (this.bookingId) {
+        pushPeerPosition(this.bookingId, lat, lng)
+      }
+    })
+  },
+
+  stopLiveTracking() {
+    stopWatch(this.watchId)
+    this.watchId = null
   },
 
   async detectMyLocation() {
     if (!navigator.geolocation) {
-      this.pushEvent("location_error", {message: "Geolocation is not supported on this browser."})
+      this.pushEvent("location_error", {message: "Geolocation is not supported."})
       return
     }
 
@@ -164,9 +251,10 @@ const LeafletMap = {
       async (position) => {
         const lat = position.coords.latitude
         const lng = position.coords.longitude
-        // Push to server — server will fuzz before storing
         this.pushEvent("user_location", {lat, lng})
-        this.map.setView([lat, lng], 13)
+        if (this.map) this.map.setView([lat, lng], 14)
+        this.updateUserMarker(lat, lng)
+        this.startLiveTracking()
 
         try {
           const location = await reverseGeocode(lat, lng)
@@ -175,22 +263,23 @@ const LeafletMap = {
       },
       (err) => {
         const msg = err.code === 1
-          ? "Location access denied. Please allow location in your browser settings."
-          : "Could not get your location. Please try again."
+          ? "Location access denied. Allow location in browser settings."
+          : "Could not get your location."
         this.pushEvent("location_error", {message: msg})
       },
-      {enableHighAccuracy: false, timeout: 10000, maximumAge: 60000}
+      TRACK_OPTIONS
     )
   }
 }
 
-// ── SkilledLocationMap (skilled person sets their working area) ───────────────
+// ── Skilled worker map (share + profile pin) ────────────────────────────────
 
 const SkilledLocationMap = {
   mounted() {
-    this.map     = null
-    this.marker  = null
+    this.map = null
+    this.marker = null
     this.watchId = null
+    this.tracking = false
 
     whenLeafletReady(() => this.initMap())
   },
@@ -199,122 +288,99 @@ const SkilledLocationMap = {
     this.map = window.L.map(this.el.id).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
 
     window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 18
+      attribution: "© OpenStreetMap",
+      maxZoom: 19
     }).addTo(this.map)
 
-    // Click on map to set approximate area
-    this.map.on("click", async (event) => {
-      await this.setLocation(event.latlng.lat, event.latlng.lng, true)
+    this.map.on("click", async (e) => {
+      await this.setLocation(e.latlng.lat, e.latlng.lng, true)
     })
 
-    // Listen for the detect button event from LiveView
-    this.handleEvent("location:detect", () => this.detectAndTrack())
+    this.handleEvent("location:detect", () => this.startTracking())
+    this.handleEvent("location:stop_tracking", () => this.stopTracking())
+    this.handleEvent("location:sharing_changed", ({enabled}) => {
+      if (enabled) this.startTracking()
+      else this.stopTracking()
+    })
+    this.handleEvent("location:set_marker", ({lat, lng}) => {
+      this.placeApproxMarker(Number(lat), Number(lng))
+    })
 
-    // If a saved location exists in dataset, show it
-    this.updateFromDataset()
-  },
-
-  updated() {
-    if (this.map) this.updateFromDataset()
-  },
-
-  destroyed() {
-    this.stopTracking()
-  },
-
-  stopTracking() {
-    if (this.watchId != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(this.watchId)
-      this.watchId = null
-    }
-  },
-
-  updateFromDataset() {
-    // Only use dataset coords if they are real values (not empty or 0,0)
     const lat = parseFloat(this.el.dataset.lat)
     const lng = parseFloat(this.el.dataset.lng)
     if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
       this.placeApproxMarker(lat, lng)
     }
+
+    if (this.el.dataset.tracking === "true") {
+      this.startTracking()
+    }
   },
 
-  // Show a CIRCLE (not a precise pin) to reinforce approximate nature
+  destroyed() {
+    this.stopTracking()
+    leaveWorkerChannel()
+  },
+
+  stopTracking() {
+    this.tracking = false
+    stopWatch(this.watchId)
+    this.watchId = null
+  },
+
   placeApproxMarker(lat, lng) {
-    if (!this.map) return
+    if (!this.map || !lat || !lng) return
 
-    // Remove old marker/circle
-    if (this.marker) {
-      this.map.removeLayer(this.marker)
-    }
+    if (this.marker) this.map.removeLayer(this.marker)
 
-    // Draw a circle to represent approximate area (~500m radius)
     this.marker = window.L.circle([lat, lng], {
-      radius:      500,
-      color:       "#0f172a",
-      fillColor:   "#0f172a",
+      radius: 500,
+      color: "#0f172a",
+      fillColor: "#0f172a",
       fillOpacity: 0.15,
-      weight:      2
+      weight: 2
     }).addTo(this.map)
 
     this.map.setView([lat, lng], 14)
   },
 
   async setLocation(lat, lng, doReverseGeocode = false) {
-    // Show circle on map (not exact pin)
     this.placeApproxMarker(lat, lng)
-
-    // Send to server — server fuzzes before storing/broadcasting
     this.pushEvent("update_location", {lat, lng})
 
-    // If sharing via channel, also push raw to channel (server fuzzes on receive)
     if (this.el.dataset.useWorkersChannel === "true") {
-      import("../user_socket.js").then(({pushWorkerPosition}) => pushWorkerPosition(lat, lng))
+      pushWorkerPosition(lat, lng)
     }
 
     if (!doReverseGeocode) return
     try {
       const location = await reverseGeocode(lat, lng)
-      // Only send city/area name — not coords
       this.pushEvent("location_selected", location)
     } catch (_) {}
   },
 
-  detectAndTrack() {
+  startTracking() {
     if (!navigator.geolocation) {
-      this.pushEvent("location_error", {message: "Geolocation is not supported on this browser."})
+      this.pushEvent("location_error", {message: "Geolocation is not supported."})
       return
     }
 
-    // Stop any existing watch
-    this.stopTracking()
+    stopWatch(this.watchId)
+    this.watchId = null
 
-    const options = {
-      enableHighAccuracy: false,  // low accuracy = less battery, less precise = more private
-      timeout:            10000,
-      maximumAge:         30000
-    }
+    this.watchId = startWatch(async (lat, lng) => {
+      await this.setLocation(lat, lng, false)
+    })
 
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        await this.setLocation(position.coords.latitude, position.coords.longitude, true)
-      },
+      async (pos) => await this.setLocation(pos.coords.latitude, pos.coords.longitude, true),
       (err) => {
         const msg = err.code === 1
-          ? "Location access denied. Please allow location in your browser settings, then try again."
-          : "Could not detect location. Please tap the map to set your area manually."
+          ? "Location denied. Allow access or tap the map to set your area."
+          : "Could not detect location. Tap the map to set your area."
         this.pushEvent("location_error", {message: msg})
       },
-      options
-    )
-
-    // Watch for updates every ~30s (not continuously) — push to server which fuzzes
-    this.watchId = navigator.geolocation.watchPosition(
-      async (position) => {
-        await this.setLocation(position.coords.latitude, position.coords.longitude, false)
-      },
-      () => {},  // silent on watch errors
-      {...options, maximumAge: 30000}
+      TRACK_OPTIONS
     )
   }
 }
@@ -323,4 +389,3 @@ export default {
   LeafletMap,
   SkilledLocationMap
 }
-

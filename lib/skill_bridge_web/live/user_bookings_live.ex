@@ -5,13 +5,14 @@ defmodule SkillBridgeWeb.UserBookingsLive do
   alias SkillBridge.Bookings
   alias SkillBridge.Moderation
   alias SkillBridge.Chat
+  alias SkillBridge.Payments
 
   @impl true
   def mount(_params, session, socket) do
     user = fetch_user(session)
     bookings = Bookings.list_bookings_for_user(user.id)
-
     booking_ids = Enum.map(bookings, & &1.id)
+    payment_statuses = Payments.payment_status_by_booking_ids(booking_ids)
     Enum.each(booking_ids, &Chat.subscribe/1)
     unread = Chat.unread_counts_for_bookings(booking_ids, user.id)
 
@@ -21,6 +22,7 @@ defmodule SkillBridgeWeb.UserBookingsLive do
      |> assign(:current_user, user)
      |> assign(:current_scope, user.role)
      |> assign(:bookings, bookings)
+     |> assign(:payment_statuses, payment_statuses)
      |> assign(:unread_counts, unread)
      |> assign(:review_booking_id, nil)
      |> assign(:review_rating, 5)
@@ -96,12 +98,19 @@ defmodule SkillBridgeWeb.UserBookingsLive do
       "skilled_profile_id" => booking.skilled_profile_id
     }
 
-    case Moderation.create_review(attrs) do
+    case Moderation.create_review_for_booking(booking, socket.assigns.current_user, attrs) do
       {:ok, _} ->
         {:noreply,
          socket
          |> assign(:review_booking_id, nil)
          |> put_flash(:info, "Review submitted — thank you!")}
+
+      {:error, :booking_not_completed} ->
+        {:noreply,
+         put_flash(socket, :error, "You can only review after the booking is completed.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "Access denied.")}
 
       {:error, %Ecto.Changeset{errors: [user_id: _]}} ->
         {:noreply,
@@ -143,12 +152,27 @@ defmodule SkillBridgeWeb.UserBookingsLive do
         "skilled_profile_id" => booking.skilled_profile_id
       }
 
-      case Moderation.create_complaint(attrs) do
+      case Moderation.create_complaint_for_booking(
+             booking,
+             socket.assigns.current_user,
+             attrs
+           ) do
         {:ok, _} ->
           {:noreply,
            socket
            |> assign(:complaint_booking_id, nil)
            |> put_flash(:info, "Complaint filed. Our team will review it.")}
+
+        {:error, :booking_not_eligible} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Complaints can be filed for confirmed or completed bookings."
+           )}
+
+        {:error, :unauthorized} ->
+          {:noreply, put_flash(socket, :error, "Access denied.")}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Could not file complaint.")}

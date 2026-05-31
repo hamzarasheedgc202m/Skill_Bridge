@@ -36,7 +36,8 @@ defmodule SkillBridgeWeb.MapLive do
      |> assign(:location_label, nil)
      |> assign(:city_options, PakistanLocations.all_cities())
      |> assign(:live_booking, nil)
-     |> assign(:live_booking_id, nil)}
+     |> assign(:live_booking_id, nil)
+     |> push_workers_to_map(workers)}
   end
 
   @impl true
@@ -44,7 +45,10 @@ defmodule SkillBridgeWeb.MapLive do
     socket =
       case params["booking_id"] do
         nil ->
-          socket |> assign(:live_booking, nil) |> assign(:live_booking_id, nil)
+          socket
+          |> assign(:live_booking, nil)
+          |> assign(:live_booking_id, nil)
+          |> push_event("map:stop_tracking", %{})
 
         bid ->
           case Integer.parse(to_string(bid)) do
@@ -58,6 +62,7 @@ defmodule SkillBridgeWeb.MapLive do
                 socket
                 |> assign(:live_booking, booking)
                 |> assign(:live_booking_id, id)
+                |> push_event("map:start_tracking", %{})
               else
                 socket
                 |> assign(:live_booking, nil)
@@ -75,7 +80,12 @@ defmodule SkillBridgeWeb.MapLive do
 
   @impl true
   def handle_event("filter_category", %{"category_id" => cid}, socket) do
-    {:noreply, assign(socket, :filter_category, cid)}
+    workers = workers_for_map(socket.assigns.workers, cid, socket.assigns.city_filter)
+
+    {:noreply,
+     socket
+     |> assign(:filter_category, cid)
+     |> push_event("map:workers", %{workers: Location.worker_map_payload(workers)})}
   end
 
   def handle_event("select_worker", %{"profile_id" => pid}, socket) do
@@ -84,11 +94,26 @@ defmodule SkillBridgeWeb.MapLive do
   end
 
   def handle_event("user_location", %{"lat" => lat, "lng" => lng}, socket) do
-    {:noreply, socket |> assign(:user_lat, lat) |> assign(:user_lng, lng)}
+    lat_f = parse_coord(lat)
+    lng_f = parse_coord(lng)
+
+    {:noreply,
+     socket
+     |> assign(:user_lat, lat_f)
+     |> assign(:user_lng, lng_f)
+     |> push_event("map:center_user", %{lat: lat_f, lng: lng_f})}
   end
 
-  def handle_event("user_location_meta", %{"label" => label, "city" => city}, socket) do
-    {:noreply, socket |> assign(:location_label, label) |> assign(:city_filter, city || "")}
+  def handle_event("user_location_meta", params, socket) do
+    label =
+      params["label"] ||
+        [params["city"], params["state"], params["country"]]
+        |> Enum.reject(&(is_nil(&1) or &1 == ""))
+        |> Enum.join(", ")
+
+    city = params["city"] || ""
+
+    {:noreply, socket |> assign(:location_label, label) |> assign(:city_filter, city)}
   end
 
   def handle_event("location_error", %{"message" => message}, socket) do
@@ -100,7 +125,12 @@ defmodule SkillBridgeWeb.MapLive do
   end
 
   def handle_event("filter_city", %{"city" => city}, socket) do
-    {:noreply, assign(socket, :city_filter, city)}
+    workers = workers_for_map(socket.assigns.workers, socket.assigns.filter_category, city)
+
+    {:noreply,
+     socket
+     |> assign(:city_filter, city)
+     |> push_event("map:workers", %{workers: Location.worker_map_payload(workers)})}
   end
 
   def handle_event("close_worker", _, socket) do
@@ -114,7 +144,28 @@ defmodule SkillBridgeWeb.MapLive do
         if w.skilled_profile_id == pid, do: %{w | latitude: lat, longitude: lng}, else: w
       end)
 
-    {:noreply, assign(socket, :workers, workers)}
+    name =
+      workers
+      |> Enum.find(&(&1.skilled_profile_id == pid))
+      |> case do
+        nil -> "?"
+        w -> w.skilled_profile.user.name
+      end
+
+    {:noreply,
+     socket
+     |> assign(:workers, workers)
+     |> push_event("map:worker_moved", %{id: pid, lat: lat, lng: lng, name: name})}
+  end
+
+  defp push_workers_to_map(socket, workers) do
+    push_event(socket, "map:workers", %{workers: Location.worker_map_payload(workers)})
+  end
+
+  defp workers_for_map(workers, category, city) do
+    workers
+    |> filtered_workers(category)
+    |> filter_workers_by_city(city)
   end
 
   defp filtered_workers(workers, ""), do: workers
@@ -134,17 +185,21 @@ defmodule SkillBridgeWeb.MapLive do
     end)
   end
 
-  defp workers_for_map(workers, category, city) do
-    workers
-    |> filtered_workers(category)
-    |> filter_workers_by_city(city)
+  defp parse_coord(v) when is_float(v), do: v
+
+  defp parse_coord(v) when is_integer(v), do: v * 1.0
+
+  defp parse_coord(v) do
+    case Float.parse(to_string(v)) do
+      {f, _} -> f
+      :error -> nil
+    end
   end
 
   defp distance(nil, _, _, _), do: nil
   defp distance(_, nil, _, _), do: nil
 
   defp distance(ulat, ulng, wlat, wlng) do
-    # Haversine formula
     r = 6371
     dlat = :math.pi() / 180 * (wlat - ulat)
     dlng = :math.pi() / 180 * (wlng - ulng)
