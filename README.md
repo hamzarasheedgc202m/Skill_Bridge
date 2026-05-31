@@ -25,8 +25,8 @@ Visit [http://localhost:4000](http://localhost:4000).
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | admin@skillbridge.local | admin123 |
-| User | alice@demo.local | demo123 |
-| Skilled | john@demo.local | demo123 |
+| User | hali.user@gmail.com | hali123 |
+| Skilled | abaidullah@gmail.com | abaidullah123 |
 
 Admin portal: `/admin/login` — also requires the platform admin key from seeds.
 
